@@ -68,6 +68,10 @@ jobs:
           print('All imports OK')
           "
 
+      # ── Unit tests ───────────────────────────────────────────────────────────
+      - name: Run unit tests
+        run: uv run pytest tests/ --tb=short -q
+
       # ── Prompt YAML validation ────────────────────────────────────────────────
       - name: Validate prompt YAML files
         run: |

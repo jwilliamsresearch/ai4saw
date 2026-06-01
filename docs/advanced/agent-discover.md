@@ -14,23 +14,21 @@ This is the difference between the three discovery commands:
 
 ### Example snowball
 
-```
-Seed:  "Srebrenica"
-  ↓ finds ICTY Krstić judgment
-LLM reads it → extracts:
-  Novel entities: Dražen Erdemović, 10th Sabotage Detachment, Branjevo Farm
-  Generates queries:
-    "Dražen Erdemović plea agreement ICTY 1996"
-    "10th Sabotage Detachment VRS Branjevo Farm executions July 1995"
-    "ICTY Erdemović sentencing testimony Srebrenica"
-  ↓ 3 queries no template could have produced
-  ↓ finds Erdemović plea transcript, execution witness statements
-LLM reads those → extracts:
-  Novel entities: Zoran Vuković, Dragan Nikolić, Pilica Cultural Centre
-  Generates queries: ...
+```mermaid
+graph TD
+    S["Seed: **Srebrenica**"]
+    S -->|DDG search| K["ICTY Krstić judgment"]
+    K -->|LLM reads| E1["Dražen Erdemović"]
+    K -->|LLM reads| E2["10th Sabotage Detachment"]
+    K -->|LLM reads| E3["Branjevo Farm"]
+    E1 -->|generated query| P["Erdemović plea transcript\nICTY 1996"]
+    E2 -->|generated query| B["Branjevo Farm\nexecution records"]
+    P -->|LLM reads| F1["Zoran Vuković"]
+    P -->|LLM reads| F2["Pilica Cultural Centre"]
+    B -->|LLM reads| F3["Dragan Nikolić"]
 ```
 
-Each document the agent ingests expands the entity graph and generates 2-3 new directions to pursue. The corpus builds itself from evidence.
+Each document the agent ingests expands the entity graph and generates 2–3 new directions. No template would have produced `"Erdemović plea agreement ICTY 1996"` — it came from reading the Krstić judgment. The corpus builds itself from evidence.
 
 ## Quick start
 
@@ -56,15 +54,17 @@ ai4saw discover agent "Srebrenica" --geography Bosnia --log 5
 
 ## ReAct loop
 
-Each session runs three phases:
+```mermaid
+flowchart LR
+    O["**Observe**\nDrain frontier\nIngest documents\nCapture text excerpts"]
+    T["**Think**\nLLM reads each excerpt\nExtract novel entities\nGenerate 2–3 queries"]
+    A["**Act**\nExecute LLM queries\nDuckDuckGo search\nAdd URLs to frontier"]
+    U["**Update**\nSave state to disk\nSleep interval"]
 
-```
-Observe  → drain frontier → ingest documents → capture text excerpts
-Think    → LLM reads each excerpt → novel entities + search queries
-Act      → execute LLM queries via DuckDuckGo → new frontier items
+    O --> T --> A --> U --> O
 ```
 
-The frontier is the continuity mechanism. Every URL found — from initial seed queries, LLM-generated queries, or link following — goes into the frontier. Sessions drain it and replenish it.
+Each session runs three phases. The frontier is the continuity mechanism. Every URL found — from initial seed queries, LLM-generated queries, or link following — goes into the frontier. Sessions drain it and replenish it.
 
 ### Phase 1: Observe
 

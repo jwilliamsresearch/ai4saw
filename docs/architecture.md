@@ -1,30 +1,60 @@
 # Architecture
 
-## Layer overview
+## Pipeline
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Layer 1 — Ingestion                                            │
-│  DocumentLoader → Chunker → Embedder → ChromaDB                 │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────┐
-│  Layer 2 — Extraction                                           │
-│  NER → Relation Extraction → Event Classification               │
-│  (few-shot + CoT prompts → Pydantic-validated JSON output)      │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────┐
-│  Layer 3 — Synthesis                                            │
-│  Entity Resolution → Knowledge Graph → Temporal Filtering       │
-│  Contradiction Detection → Network Analysis → Silence Detection  │
-│  RAG Q&A → Multi-hop Agent → Corpus Discovery                   │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────────┐
-│  Provider Layer (all LLM + embedding calls route here)          │
-│  Ollama  |  OpenRouter  |  HuggingFace Inference API            │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph input [Documents]
+        PDF[PDF]
+        HTML[HTML]
+        DOCX[DOCX / TXT]
+    end
+
+    subgraph discovery [Discovery agents]
+        FE["discover fetch\nFixed APIs"]
+        WEB["discover web\nStateful crawler"]
+        AGT["discover agent\nLLM reasoning"]
+    end
+
+    input -->|ai4saw ingest| VDB
+    discovery -->|auto-ingest| VDB
+
+    VDB[(ChromaDB\nVector Store)]
+
+    VDB -->|extract pipeline| EXT
+
+    subgraph EXT [Extraction]
+        NER[NER\nentities]
+        REL[Relations\ntriples]
+        EVT[Events\nclassification]
+    end
+
+    EXT -->|extract resolve| REG[Entity Registry\ncanonical aliases]
+    REG -->|graph build| KG[(Knowledge\nGraph)]
+
+    KG --> GRAG[GraphRAG\nquery]
+    KG --> NET[Network Analysis\ncentrality · communities]
+    KG --> CON[Contradiction\nDetection]
+    VDB --> SIL[Silence\nDetection]
+    VDB --> GRAG
+
+    GRAG --> AGN[Multi-hop\nReAct Agent]
+
+    AGN --> OUT
+    NET --> OUT
+    CON --> OUT
+    SIL --> OUT
+
+    subgraph OUT [Outputs]
+        GEO[events.geojson]
+        GEXF[network.gexf]
+        JS[relations / entities / silences .json]
+    end
+
+    PROV[Ollama · OpenRouter · HuggingFace] -.->|all LLM + embed calls| EXT
+    PROV -.-> GRAG
+    PROV -.-> AGN
+    PROV -.-> AGT
 ```
 
 ## Data flow

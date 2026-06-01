@@ -6,15 +6,29 @@
 
 Unlike `discover fetch` (which runs fixed API queries on a schedule), the web agent maintains **persistent memory** across sessions. It remembers every URL it has visited, scores which sources and query strategies produce the best results, and maintains a priority frontier of URLs still to explore.
 
-```
-Session 1:  DDG query → 80 URLs → frontier (size 80)
-Session 2:  drain frontier → visit 30 → extract links → frontier (size 120)
-Session 3:  drain frontier → 30 more → frontier (size 95)
-Session 4:  fresh DDG (every 4th) + drain → frontier grows again
-...
+```mermaid
+flowchart LR
+    subgraph sources [Discovery — every 4th session]
+        DDG[DuckDuckGo\n5 templates × entity]
+        WP[Wikipedia\nexternal links]
+        CR[CrossRef\nopen access]
+    end
+
+    sources -->|new URLs| FR
+
+    FR["Priority Frontier\n(sorted by score)"]
+
+    FR -->|drain top-N\nevery session| V[Visit URL]
+
+    V -->|PDF| IN[Ingest\nChromaDB]
+    V -->|HTML| LF[Extract links]
+    LF -->|PDF or trusted domain| FR
+
+    IN -->|update| DS[Domain scores\nQuery stats]
+    DS -.->|adapt priority| FR
 ```
 
-The corpus grows continuously as the agent works through its backlog and rediscovers new documents.
+The corpus grows continuously as the agent works through its backlog. Between discovery sessions it purely drains the frontier — no new API calls needed.
 
 ## Quick start
 
