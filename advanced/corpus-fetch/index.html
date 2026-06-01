@@ -1537,25 +1537,25 @@
 <p>This automates <strong>Phase 1</strong> of the pipeline (corpus preparation) for sources that have open APIs.</p>
 <h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Discover and fetch documents about specific entities</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>fetch<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span><span class="s2">&quot;Mladic&quot;</span><span class="w"> </span><span class="s2">&quot;Bosnian Serb Army&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>fetch<span class="w"> </span><span class="s2">&quot;Location Alpha&quot;</span><span class="w"> </span><span class="s2">&quot;Commander Alpha&quot;</span><span class="w"> </span><span class="s2">&quot;Armed Group Alpha&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--geography<span class="w"> </span>conflict-region<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>--max-docs<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="se">\</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span>--min-relevance<span class="w"> </span><span class="m">0</span>.5
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Fetch documents for silence candidates (gaps detected by silence detector)</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>fetch<span class="w"> </span><span class="s2">&quot;Foča&quot;</span><span class="w"> </span><span class="s2">&quot;Prijedor&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>fetch<span class="w"> </span><span class="s2">&quot;Location C&quot;</span><span class="w"> </span><span class="s2">&quot;Location D&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span>--geography<span class="w"> </span>conflict-region<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span>--silence-mode<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span>--max-docs<span class="w"> </span><span class="m">15</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1"># Preview candidates without downloading anything</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>fetch<span class="w"> </span><span class="s2">&quot;El Geneina&quot;</span><span class="w"> </span><span class="s2">&quot;Masalit&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">  </span>--geography<span class="w"> </span>Sudan<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>fetch<span class="w"> </span><span class="s2">&quot;Location Beta&quot;</span><span class="w"> </span><span class="s2">&quot;Group Beta&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">  </span>--geography<span class="w"> </span>conflict-region<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">  </span>--dry-run
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>
 </span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="c1"># Skip review prompt — for scripted/automated runs</span>
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>fetch<span class="w"> </span><span class="s2">&quot;RSF&quot;</span><span class="w"> </span><span class="s2">&quot;Darfur&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">  </span>--geography<span class="w"> </span>Sudan<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>fetch<span class="w"> </span><span class="s2">&quot;Armed-Group-Beta&quot;</span><span class="w"> </span><span class="s2">&quot;Province Beta&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">  </span>--geography<span class="w"> </span>conflict-region<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">  </span>--yes
 </span></code></pre></div>
 <h2 id="options">Options<a class="headerlink" href="#options" title="Permanent link">&para;</a></h2>
@@ -1608,7 +1608,7 @@
 <h2 id="what-gets-registered">What gets registered<a class="headerlink" href="#what-gets-registered" title="Permanent link">&para;</a></h2>
 <p>For each successfully ingested document, a row is appended to <code>corpus/sources.csv</code>:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>filename,source_url,date_accessed,licence,geography,notes
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>sudan_rsf_masalit_abc12345.pdf,https://reliefweb.int/...,2026-06-01,public,Sudan,auto-fetched from reliefweb | Sudan: RSF Attacks on Masalit
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>sudan_rsf_masalit_abc12345.pdf,https://reliefweb.int/...,2026-06-01,public,Sudan,auto-fetched from reliefweb | conflict-region: Armed-Group-Beta Attacks on Group Beta
 </span></code></pre></div>
 <p>Licence is inferred automatically: <code>public</code> for ReliefWeb, <code>news</code> for GDELT.</p>
 <h2 id="sources-supported">Sources supported<a class="headerlink" href="#sources-supported" title="Permanent link">&para;</a></h2>
@@ -1666,7 +1666,7 @@
 </blockquote>
 <h3 id="deferred-sources-need-custom-scrapers">Deferred sources (need custom scrapers)<a class="headerlink" href="#deferred-sources-need-custom-scrapers" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>ICTY/IRMCT</strong> — document database requires session-based scraping</li>
+<li><strong>International Tribunal/IRMCT</strong> — document database requires session-based scraping</li>
 <li><strong>ICC</strong> — court records available via web but no public API</li>
 <li><strong>OHCHR / ReliefWeb</strong> — require registered API keys</li>
 <li><strong>HRW reports</strong> — HTML with inconsistent structure</li>
@@ -1687,7 +1687,7 @@
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>ai4saw<span class="w"> </span><span class="nb">export</span><span class="w"> </span>all<span class="w">   </span><span class="c1"># includes silence output</span>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># 2. Fetch targeted documents for the highest-priority silence locations</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>fetch<span class="w"> </span><span class="s2">&quot;Nyala&quot;</span><span class="w"> </span><span class="s2">&quot;Zalingei&quot;</span><span class="w"> </span>--geography<span class="w"> </span>Sudan<span class="w"> </span>--silence-mode<span class="w"> </span>--yes
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>fetch<span class="w"> </span><span class="s2">&quot;Location F&quot;</span><span class="w"> </span><span class="s2">&quot;Location G&quot;</span><span class="w"> </span>--geography<span class="w"> </span>conflict-region<span class="w"> </span>--silence-mode<span class="w"> </span>--yes
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
 </span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># 3. Re-run extraction on the new chunks</span>
 </span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>ai4saw<span class="w"> </span>extract<span class="w"> </span>pipeline
@@ -1700,9 +1700,9 @@
 <div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>┌─────────────┬───────────┬──────────────┬──────────────────────────────────────────────────────────┐
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>│ Source      │ Relevance │ Date         │ Title                                                    │
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>├─────────────┼───────────┼──────────────┼──────────────────────────────────────────────────────────┤
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>│ reliefweb   │ 0.80      │ 2023-05-02   │ Sudan: RSF Attacks on Masalit in El Geneina              │
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>│ reliefweb   │ 0.70      │ 2023-06-14   │ Darfur: Humanitarian Situation Update                    │
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>│ gdelt       │ 0.55      │ 2023-04-28   │ El Geneina massacre: what we know                        │
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>│ reliefweb   │ 0.80      │ 2023-05-02   │ conflict-region: Armed-Group-Beta Attacks on Group Beta in Location Beta              │
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>│ reliefweb   │ 0.70      │ 2023-06-14   │ Province Beta: Humanitarian Situation Update                    │
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>│ gdelt       │ 0.55      │ 2023-04-28   │ Location Beta massacre: what we know                        │
 </span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>└─────────────┴───────────┴──────────────┴──────────────────────────────────────────────────────────┘
 </span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>Fetch 3 documents? [y/N]:
 </span></code></pre></div>

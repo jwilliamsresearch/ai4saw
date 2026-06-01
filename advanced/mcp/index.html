@@ -1513,7 +1513,7 @@
 <p>The MCP (Model Context Protocol) server exposes AI4SAW as a tool that Claude Desktop, Claude.ai, and other MCP-compatible clients can use directly.</p>
 <p>A researcher can open Claude Desktop and ask:</p>
 <blockquote>
-<p><em>"What happened in El Geneina in April 2023?"</em></p>
+<p><em>"What happened in Location Beta in April 2023?"</em></p>
 </blockquote>
 <p>Claude will call <code>search_corpus</code> and <code>query_knowledge_graph</code>, then synthesise a cited answer grounded in your indexed documents — without the researcher needing to know any CLI commands.</p>
 <h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h2>
@@ -1581,9 +1581,9 @@
 <h2 id="temporal-queries-via-mcp">Temporal queries via MCP<a class="headerlink" href="#temporal-queries-via-mcp" title="Permanent link">&para;</a></h2>
 <p>The <code>query_knowledge_graph</code> tool accepts an <code>at_date</code> parameter:</p>
 <blockquote>
-<p><em>"Show me the command structure in Bosnia as of July 1995"</em></p>
+<p><em>"Show me the command structure in conflict-region as of a specific date"</em></p>
 </blockquote>
-<p>Claude will call <code>query_knowledge_graph(entity_name="Bosnia command", at_date="1995-07-11")</code> and return only relations valid on that date.</p>
+<p>Claude will call <code>query_knowledge_graph(entity_name="Bosnia command", at_date="YYYY-MM-DD")</code> and return only relations valid on that date.</p>
 <h2 id="server-instructions">Server instructions<a class="headerlink" href="#server-instructions" title="Permanent link">&para;</a></h2>
 <p>The server is initialised with a system-level instruction set that tells Claude:</p>
 <ul>

@@ -1534,7 +1534,7 @@
 <p><strong>Prompts as first-class artefacts.</strong> Every LLM call loads its prompt from a versioned YAML file in <code>prompts/</code>. No prompt strings are hardcoded in Python. Every extraction run logs the prompt version used, making results reproducible.</p>
 <p><strong>Idempotent ingestion.</strong> Chunk IDs are deterministic SHA-256 hashes of <code>(filename, chunk_index)</code>. Re-running ingestion on the same corpus overwrites rather than duplicates.</p>
 <p><strong>Two-layer retrieval.</strong> MMR (maximal marginal relevance) retrieval reduces redundancy; cross-encoder reranking then re-scores for relevance. The cross-encoder degrades gracefully to the original ranking if not installed.</p>
-<p><strong>Temporal edges in the knowledge graph.</strong> Every edge carries <code>valid_from</code> and <code>valid_to</code> fields (ISO 8601). This enables queries like "what was the command structure in July 1995?" without rebuilding the graph.</p>
+<p><strong>Temporal edges in the knowledge graph.</strong> Every edge carries <code>valid_from</code> and <code>valid_to</code> fields (ISO 8601). This enables queries like "what was the command structure in a specific date?" without rebuilding the graph.</p>
 
 
 

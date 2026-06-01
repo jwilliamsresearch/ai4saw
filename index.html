@@ -1461,8 +1461,8 @@
 <h1 id="ai4saw">AI4SAW<a class="headerlink" href="#ai4saw" title="Permanent link">&para;</a></h1>
 <p><strong>AI for Slavery and War — Open Intelligence Extraction Pipeline</strong></p>
 <p>AI4SAW is an open-source Python pipeline that automates intelligence extraction from unstructured conflict and human rights corpora. It turns NGO reports, legal filings, UN documents, and news archives into structured datasets that feed academic and policy research.</p>
-<p><strong>Primary domains:</strong> conflict-related slavery in Bosnia and Sudan<br />
-<strong>Designed to feed:</strong> CDISaW, ACLED, PostGIS, and QGIS workflows</p>
+<p><strong>Primary domains:</strong> conflict-related slavery and war crimes documentation<br />
+<strong>Designed to feed:</strong> downstream datasets, GIS workflows, and policy research pipelines</p>
 <hr />
 <h2 id="what-it-does">What it does<a class="headerlink" href="#what-it-does" title="Permanent link">&para;</a></h2>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Unstructured text  →  Entities  →  Relations  →  Events
@@ -1516,7 +1516,7 @@
 <tbody>
 <tr>
 <td><strong>Entity Resolution</strong></td>
-<td>Cross-document deduplication: "RSF" = "Rapid Support Forces"</td>
+<td>Cross-document deduplication: "Armed-Group-Beta" = "Rapid Support Forces"</td>
 </tr>
 <tr>
 <td><strong>GraphRAG</strong></td>
@@ -1524,7 +1524,7 @@
 </tr>
 <tr>
 <td><strong>Temporal Graph</strong></td>
-<td>Time-filtered graph queries: "command structure as of July 1995"</td>
+<td>Time-filtered graph queries: "command structure as of a specific date"</td>
 </tr>
 <tr>
 <td><strong>Multi-hop Agent</strong></td>
@@ -1568,7 +1568,7 @@
 <hr />
 <h2 id="one-minute-demo">One-minute demo<a class="headerlink" href="#one-minute-demo" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Ingest a document</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>ai4saw<span class="w"> </span>ingest<span class="w"> </span>file<span class="w"> </span>report.pdf<span class="w"> </span>--geography<span class="w"> </span>Bosnia
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>ai4saw<span class="w"> </span>ingest<span class="w"> </span>file<span class="w"> </span>report.pdf<span class="w"> </span>--geography<span class="w"> </span>conflict-region
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Extract entities, relations, events</span>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>ai4saw<span class="w"> </span>extract<span class="w"> </span>pipeline
@@ -1583,7 +1583,7 @@
 </span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>ai4saw<span class="w"> </span>query<span class="w"> </span>ask<span class="w"> </span><span class="s2">&quot;What forms of forced labour were documented in Bosnian detention camps?&quot;</span>
 </span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>
 </span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="c1"># Ask a complex multi-hop question</span>
-</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>ai4saw<span class="w"> </span>graph<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;What was the command structure before Srebrenica and who gave the orders?&quot;</span>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>ai4saw<span class="w"> </span>graph<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;What was the command structure before Location Alpha and who gave the orders?&quot;</span>
 </span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>
 </span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="c1"># Check what&#39;s available to query</span>
 </span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>ai4saw<span class="w"> </span>info

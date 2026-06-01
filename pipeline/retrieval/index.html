@@ -1452,12 +1452,12 @@
 </span></code></pre></div></p>
 <h2 id="graphrag">GraphRAG<a class="headerlink" href="#graphrag" title="Permanent link">&para;</a></h2>
 <p>For questions about specific actors or relations, use GraphRAG:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ai4saw<span class="w"> </span>graph<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;What did the Drina Corps do in Srebrenica in 1995?&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ai4saw<span class="w"> </span>graph<span class="w"> </span>query<span class="w"> </span><span class="s2">&quot;What did the Drina Corps do in Location Alpha in 1995?&quot;</span>
 </span></code></pre></div>
 <p>This retrieves the entity's neighbourhood from the knowledge graph and combines it with vector search. See <a href="../../advanced/graph-rag/">GraphRAG</a>.</p>
 <h2 id="multi-hop-agent">Multi-hop Agent<a class="headerlink" href="#multi-hop-agent" title="Permanent link">&para;</a></h2>
 <p>For complex temporal or causal questions:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>ai4saw<span class="w"> </span>graph<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;What was happening in the months before Srebrenica?&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>ai4saw<span class="w"> </span>graph<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;What was happening in the months before Location Alpha?&quot;</span>
 </span></code></pre></div>
 <p>The agent chains multiple tool calls until it has enough context. See <a href="../../advanced/agent/">Multi-hop Agent</a>.</p>
 

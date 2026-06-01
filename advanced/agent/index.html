@@ -1457,11 +1457,11 @@
 <h2 id="the-problem-with-single-shot-rag">The problem with single-shot RAG<a class="headerlink" href="#the-problem-with-single-shot-rag" title="Permanent link">&para;</a></h2>
 <p>Standard RAG makes one retrieval call and generates one answer. This fails for questions that require chaining across documents and time:</p>
 <blockquote>
-<p><em>"What happened in the six months before Srebrenica, who were the key actors, and what was the command structure that enabled the massacre?"</em></p>
+<p><em>"What happened in the six months before Location Alpha, who were the key actors, and what was the command structure that enabled the massacre?"</em></p>
 </blockquote>
 <p>This question requires temporal chaining (six months of events), actor tracking (who appears across multiple documents), and causal inference (what enabled what). Single retrieval cannot do this reliably.</p>
 <h2 id="how-the-agent-works">How the agent works<a class="headerlink" href="#how-the-agent-works" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>ai4saw<span class="w"> </span>graph<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;What was the command structure before Srebrenica and who gave the orders?&quot;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>ai4saw<span class="w"> </span>graph<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;What was the command structure before Location Alpha and who gave the orders?&quot;</span>
 </span></code></pre></div>
 <p>The agent uses LangGraph's ReAct architecture: it reasons about what to look up, calls a tool, reasons about the result, calls another tool, and so on until it has enough context to answer.</p>
 <p><strong>Three tools available:</strong></p>
@@ -1494,20 +1494,20 @@
 <p><strong>Maximum iterations</strong> — default 8 tool calls. Increase with <code>--max-iterations</code> for more thorough research at higher cost.</p>
 <h2 id="example-output">Example output<a class="headerlink" href="#example-output" title="Permanent link">&para;</a></h2>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Agent Answer:
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>The command structure in the months before Srebrenica centred on three key nodes.
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>General Ratko Mladić, as commander of the VRS Main Staff, issued the directive
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>Krivaja-95 in early July 1995 [Source: ICTY-judgment-krstic.pdf].
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>The Drina Corps, commanded by Radislav Krstić from 11 July, was the operational
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>The command structure in the months before Location Alpha centred on three key nodes.
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Commander Alpha, as commander of the Armed-Group-Alpha Main Staff, issued the directive
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>Krivaja-95 in early a specific date [Source: International Tribunal-judgment-krstic.pdf].
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>The Drina Corps, commanded by Radislav Commander Beta from 11 July, was the operational
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>unit responsible for the enclave. [Source: HRW-1995-report.pdf]...
 </span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
 </span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>Reasoning Steps:
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  1. search_corpus        &quot;command structure Bosnia 1995&quot;
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>  2. query_knowledge_graph &quot;Mladić command chain&quot;
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  1. search_corpus        &quot;command structure conflict-region 1995&quot;
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>  2. query_knowledge_graph &quot;Commander Alpha command chain&quot;
 </span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>  3. search_corpus        &quot;Krivaja-95 directive&quot;
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>  4. query_knowledge_graph &quot;Drina Corps Krstić July 1995&quot;
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>  5. search_corpus        &quot;Srebrenica enclave events June 1995&quot;
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>  4. query_knowledge_graph &quot;Drina Corps Commander Beta a specific date&quot;
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>  5. search_corpus        &quot;Location Alpha enclave events June 1995&quot;
 </span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>Sources: ICTY-judgment-krstic.pdf | HRW-1995-report.pdf | UN-srebrenica-report.pdf
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>Sources: International Tribunal-judgment-krstic.pdf | HRW-1995-report.pdf | UN-srebrenica-report.pdf
 </span></code></pre></div>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>ai4saw<span class="w"> </span>graph<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;question&quot;</span><span class="w"> </span><span class="se">\</span>
@@ -1545,7 +1545,7 @@
 <div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">ai4saw.retrieval.agent</span><span class="w"> </span><span class="kn">import</span> <span class="n">multi_hop_answer</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">response</span> <span class="o">=</span> <span class="n">multi_hop_answer</span><span class="p">(</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="s2">&quot;What was the role of the Rapid Support Forces in Darfur in 2023?&quot;</span><span class="p">,</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="s2">&quot;What was the role of the Rapid Support Forces in Province Beta in 2023?&quot;</span><span class="p">,</span>
 </span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">max_iterations</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="p">)</span>
 </span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>

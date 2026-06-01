@@ -1641,35 +1641,35 @@
 </table>
 <h3 id="example-snowball">Example snowball<a class="headerlink" href="#example-snowball" title="Permanent link">&para;</a></h3>
 <pre class="mermaid"><code>graph TD
-    S["Seed: **Srebrenica**"]
-    S --&gt;|DDG search| K["ICTY Krstić judgment"]
-    K --&gt;|LLM reads| E1["Dražen Erdemović"]
-    K --&gt;|LLM reads| E2["10th Sabotage Detachment"]
-    K --&gt;|LLM reads| E3["Branjevo Farm"]
-    E1 --&gt;|generated query| P["Erdemović plea transcript\nICTY 1996"]
-    E2 --&gt;|generated query| B["Branjevo Farm\nexecution records"]
-    P --&gt;|LLM reads| F1["Zoran Vuković"]
-    P --&gt;|LLM reads| F2["Pilica Cultural Centre"]
-    B --&gt;|LLM reads| F3["Dragan Nikolić"]</code></pre>
-<p>Each document the agent ingests expands the entity graph and generates 2–3 new directions. No template would have produced <code>"Erdemović plea agreement ICTY 1996"</code> — it came from reading the Krstić judgment. The corpus builds itself from evidence.</p>
+    S["Seed: **Location Alpha**"]
+    S --&gt;|DDG search| K["International Tribunal Commander Beta judgment"]
+    K --&gt;|LLM reads| E1["Witness Alpha"]
+    K --&gt;|LLM reads| E2["Unit Alpha"]
+    K --&gt;|LLM reads| E3["Site Alpha"]
+    E1 --&gt;|generated query| P["Witness Alpha plea transcript\nInternational Tribunal 1996"]
+    E2 --&gt;|generated query| B["Site Alpha\nexecution records"]
+    P --&gt;|LLM reads| F1["Witness Beta"]
+    P --&gt;|LLM reads| F2["Site Beta"]
+    B --&gt;|LLM reads| F3["Commander Gamma"]</code></pre>
+<p>Each document the agent ingests expands the entity graph and generates 2–3 new directions. No template would have produced <code>"Witness Alpha plea agreement International Tribunal 1996"</code> — it came from reading the Commander Beta judgment. The corpus builds itself from evidence.</p>
 <h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># First run — discovers and starts reasoning</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span><span class="s2">&quot;Mladic&quot;</span><span class="w"> </span><span class="s2">&quot;VRS&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--yes
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;Location Alpha&quot;</span><span class="w"> </span><span class="s2">&quot;Commander Alpha&quot;</span><span class="w"> </span><span class="s2">&quot;Armed-Group-Alpha&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--geography<span class="w"> </span>conflict-region<span class="w"> </span>--yes
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Run overnight — 20-minute sessions, LLM reasoning every session</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span><span class="s2">&quot;Mladic&quot;</span><span class="w"> </span><span class="s2">&quot;VRS&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">1200</span><span class="w"> </span>--yes
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;Location Alpha&quot;</span><span class="w"> </span><span class="s2">&quot;Commander Alpha&quot;</span><span class="w"> </span><span class="s2">&quot;Armed-Group-Alpha&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span>--geography<span class="w"> </span>conflict-region<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">1200</span><span class="w"> </span>--yes
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Sudan corpus</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;El Geneina&quot;</span><span class="w"> </span><span class="s2">&quot;Masalit&quot;</span><span class="w"> </span><span class="s2">&quot;RSF&quot;</span><span class="w"> </span><span class="s2">&quot;Darfur&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span>--geography<span class="w"> </span>Sudan<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">1200</span><span class="w"> </span>--yes
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># conflict-region corpus</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;Location Beta&quot;</span><span class="w"> </span><span class="s2">&quot;Group Beta&quot;</span><span class="w"> </span><span class="s2">&quot;Armed-Group-Beta&quot;</span><span class="w"> </span><span class="s2">&quot;Province Beta&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span>--geography<span class="w"> </span>conflict-region<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">1200</span><span class="w"> </span>--yes
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1"># Check what it&#39;s discovered</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--state
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;Location Alpha&quot;</span><span class="w"> </span>--geography<span class="w"> </span>conflict-region<span class="w"> </span>--state
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1"># Read the last 5 reasoning entries</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--log<span class="w"> </span><span class="m">5</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;Location Alpha&quot;</span><span class="w"> </span>--geography<span class="w"> </span>conflict-region<span class="w"> </span>--log<span class="w"> </span><span class="m">5</span>
 </span></code></pre></div>
 <h2 id="react-loop">ReAct loop<a class="headerlink" href="#react-loop" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart LR
@@ -1692,12 +1692,12 @@
 </ul>
 <p>The LLM returns:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;novel_entities&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;Dražen Erdemović&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;10th Sabotage Detachment&quot;</span><span class="p">],</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;novel_entities&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;Witness Alpha&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Unit Alpha&quot;</span><span class="p">],</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;queries&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="s2">&quot;Dražen Erdemović plea agreement ICTY 1996&quot;</span><span class="p">,</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="s2">&quot;10th Sabotage Detachment VRS Branjevo Farm executions July 1995&quot;</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="s2">&quot;Witness Alpha plea agreement International Tribunal 1996&quot;</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="s2">&quot;Unit Alpha Armed-Group-Alpha Site Alpha executions a specific date&quot;</span>
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="p">],</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">&quot;reasoning&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Erdemović&#39;s testimony is the primary eyewitness account; his unit directly carried out the executions&quot;</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">&quot;reasoning&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Witness Alpha&#39;s testimony is the primary eyewitness account; his unit directly carried out the executions&quot;</span>
 </span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>Novel entities are registered in state and added to future searches. Queries are queued for Phase 3.</p>
@@ -1741,10 +1741,10 @@
 </table>
 <h2 id="reasoning-log">Reasoning log<a class="headerlink" href="#reasoning-log" title="Permanent link">&para;</a></h2>
 <p>Every LLM reasoning call is appended to <code>output/agent_discover_log.jsonl</code>:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>{&quot;source_url&quot;: &quot;https://icty.org/...&quot;, &quot;source_title&quot;: &quot;Krstić Trial Judgment&quot;, &quot;novel_entities&quot;: [&quot;Dražen Erdemović&quot;, &quot;10th Sabotage Detachment&quot;], &quot;generated_queries&quot;: [&quot;Dražen Erdemović plea ICTY 1996&quot;, ...], &quot;reasoning&quot;: &quot;Erdemović is the primary execution witness...&quot;, &quot;timestamp&quot;: &quot;2026-06-01T14:22:00Z&quot;}
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>{&quot;source_url&quot;: &quot;https://tribunal.int/...&quot;, &quot;source_title&quot;: &quot;Commander Beta Trial Judgment&quot;, &quot;novel_entities&quot;: [&quot;Witness Alpha&quot;, &quot;Unit Alpha&quot;], &quot;generated_queries&quot;: [&quot;Witness Alpha plea International Tribunal 1996&quot;, ...], &quot;reasoning&quot;: &quot;Witness Alpha is the primary execution witness...&quot;, &quot;timestamp&quot;: &quot;2026-06-01T14:22:00Z&quot;}
 </span></code></pre></div>
 <p>Read the last N entries:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--log<span class="w"> </span><span class="m">10</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;Location Alpha&quot;</span><span class="w"> </span>--geography<span class="w"> </span>conflict-region<span class="w"> </span>--log<span class="w"> </span><span class="m">10</span>
 </span></code></pre></div>
 <p>This gives full transparency into the agent's reasoning chain.</p>
 <h2 id="options">Options<a class="headerlink" href="#options" title="Permanent link">&para;</a></h2>
@@ -1811,16 +1811,16 @@
 </table>
 <h2 id="comparing-all-three-discovery-commands">Comparing all three discovery commands<a class="headerlink" href="#comparing-all-three-discovery-commands" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># discover fetch — static API queries, good for a first bootstrap</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>fetch<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span><span class="s2">&quot;Mladic&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--max-docs<span class="w"> </span><span class="m">100</span><span class="w"> </span>--yes
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>fetch<span class="w"> </span><span class="s2">&quot;Location Alpha&quot;</span><span class="w"> </span><span class="s2">&quot;Commander Alpha&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--geography<span class="w"> </span>conflict-region<span class="w"> </span>--max-docs<span class="w"> </span><span class="m">100</span><span class="w"> </span>--yes
 </span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
 </span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1"># discover web — stateful crawler, adapts query order, runs overnight</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span><span class="s2">&quot;Mladic&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">900</span><span class="w"> </span>--yes
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Location Alpha&quot;</span><span class="w"> </span><span class="s2">&quot;Commander Alpha&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span>--geography<span class="w"> </span>conflict-region<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">900</span><span class="w"> </span>--yes
 </span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
 </span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="c1"># discover agent — LLM reasoning loop, corpus builds from evidence</span>
-</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span><span class="s2">&quot;Mladic&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">1200</span><span class="w"> </span>--yes
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>agent<span class="w"> </span><span class="s2">&quot;Location Alpha&quot;</span><span class="w"> </span><span class="s2">&quot;Commander Alpha&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span>--geography<span class="w"> </span>conflict-region<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">1200</span><span class="w"> </span>--yes
 </span></code></pre></div>
 <p><strong>Recommended workflow:</strong> run <code>discover fetch</code> once to bootstrap, then <code>discover agent --loop</code> to let the reasoning agent grow the corpus from what it finds.</p>
 <h2 id="technical-notes">Technical notes<a class="headerlink" href="#technical-notes" title="Permanent link">&para;</a></h2>
