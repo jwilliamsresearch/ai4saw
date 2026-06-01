@@ -1,6 +1,7 @@
 site_name: AI4SAW
 site_description: AI for Slavery and War — Open Intelligence Extraction Pipeline
 site_author: James Williams, University of Nottingham
+site_url: https://jwilliamsresearch.github.io/ai4saw/
 repo_url: https://github.com/jwilliamsresearch/ai4saw
 repo_name: jwilliamsresearch/ai4saw
 docs_dir: docs
@@ -19,20 +20,10 @@ theme:
     - content.code.copy
     - content.code.annotate
     - content.tooltips
-    - announce.dismiss
   palette:
-    - scheme: slate
-      primary: black
-      accent: cyan
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
-    - scheme: default
-      primary: black
-      accent: cyan
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
+    scheme: default
+    primary: black
+    accent: black
   font:
     text: Inter
     code: JetBrains Mono
@@ -84,7 +75,7 @@ extra:
       link: https://github.com/jwilliamsresearch/ai4saw
     - icon: fontawesome/solid/envelope
       link: mailto:James.williams4@nottingham.ac.uk
-  generator: false   # removes "Made with Material" footer line
+  generator: false
 
 copyright: >
   James Williams, University of Nottingham &nbsp;|&nbsp;
@@ -99,13 +90,17 @@ nav:
     - Ingestion: pipeline/ingestion.md
     - Extraction: pipeline/extraction.md
     - Retrieval: pipeline/retrieval.md
+  - Discovery & Agents:
+    - Corpus Discovery: advanced/discovery.md
+    - Automated Fetch: advanced/corpus-fetch.md
+    - Autonomous Web Agent: advanced/web-agent.md
+    - Agentic Discovery: advanced/agent-discover.md
   - Advanced Features:
     - Entity Resolution: advanced/entity-resolution.md
     - GraphRAG + Temporal Graph: advanced/graph-rag.md
     - Multi-hop Agent: advanced/agent.md
     - Contradiction Detection: advanced/contradiction.md
     - Perpetrator Network: advanced/network.md
-    - Corpus Discovery: advanced/discovery.md
     - Silence Detection: advanced/silence.md
     - MCP Server: advanced/mcp.md
     - LLM-as-Judge: advanced/llm-judge.md

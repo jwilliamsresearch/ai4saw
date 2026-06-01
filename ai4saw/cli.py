@@ -18,6 +18,7 @@ Command groups:
 from __future__ import annotations
 
 import json
+import time
 from datetime import date
 from pathlib import Path
 from typing import Optional
@@ -517,7 +518,7 @@ def discover_run(
     labels: Optional[list[str]] = typer.Option(
         None, "--label", help="Filter registry entities by label (e.g. LOCATION ORG)"
     ),
-    per_entity_limit: int = typer.Option(10, help="Max results per entity per source"),
+    per_entity_limit: int = typer.Option(25, help="Max results per entity per source"),
     output: Path = typer.Option(Path("output/discovered_documents.json")),
 ) -> None:
     """Discover documents not yet in the corpus via ReliefWeb and GDELT.
@@ -592,6 +593,443 @@ def discover_run(
         f"\n[dim]{result.query_count} API queries, "
         f"{result.new_documents} new documents. Saved → {output}[/dim]"
     )
+
+
+@discover_app.command("fetch")
+def discover_fetch(
+    entities: list[str] = typer.Argument(
+        ..., help="Entity names to search for (e.g. 'Srebrenica' 'VRS' 'Mladic')"
+    ),
+    geography: str = typer.Option(..., help="Geography tag for chunk metadata and sources.csv"),
+    max_docs: int = typer.Option(100, help="Hard cap on documents to ingest in one run"),
+    min_relevance: float = typer.Option(0.5, help="Minimum relevance score (0–1)"),
+    per_entity_limit: int = typer.Option(25, help="Max results per entity per source"),
+    silence_mode: bool = typer.Option(
+        False, "--silence-mode", help="Treat entities as silence candidates (higher per-entity limit)"
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show candidates only — download nothing"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+) -> None:
+    """Discover, download, and ingest documents from ReliefWeb and GDELT.
+
+    Automates corpus preparation: queries both APIs, filters by relevance,
+    downloads documents, registers them in corpus/sources.csv, and ingests
+    them into ChromaDB — in a single command.
+
+    Examples:
+
+      ai4saw discover fetch "Srebrenica" "Mladic" --geography Bosnia --max-docs 20
+
+      ai4saw discover fetch "El Geneina" "Masalit" --geography Sudan --dry-run
+
+      ai4saw discover fetch "Foča" "Prijedor" --geography Bosnia --silence-mode --yes
+    """
+    from ai4saw.agents.fetch_agent import fetch_corpus
+
+    # ── Dry run: discover and show candidates, then exit ──────────────────────
+    if dry_run:
+        console.print("[dim]Dry run — no files will be downloaded.[/dim]\n")
+        result = fetch_corpus(
+            entities=list(entities),
+            geography=geography,
+            min_relevance=min_relevance,
+            max_docs=max_docs,
+            per_entity_limit=per_entity_limit,
+            silence_mode=silence_mode,
+            dry_run=True,
+        )
+        console.print(
+            f"[bold]{result.candidates_found}[/bold] candidates found, "
+            f"[bold]{result.candidates_above_threshold}[/bold] above relevance threshold {min_relevance}."
+        )
+        return
+
+    # ── Discovery pass to show candidates before committing ───────────────────
+    if not yes:
+        from ai4saw.agents.fetch_agent import fetch_corpus as _fc
+        from ai4saw.discovery.discovery import discover_for_entities, discover_for_silences
+        from ai4saw.agents.fetch_agent import _is_registered
+
+        if silence_mode:
+            discovery = discover_for_silences(list(entities), per_entity_limit=max(per_entity_limit, 15))
+        else:
+            discovery = discover_for_entities(list(entities), per_entity_limit=per_entity_limit)
+
+        candidates = [
+            d for d in discovery.documents
+            if d.relevance_score >= min_relevance and not _is_registered(d.url)
+        ][:max_docs]
+
+        if not candidates:
+            console.print("[yellow]No new candidates found above threshold.[/yellow]")
+            return
+
+        table = Table(title="Candidates to fetch", show_header=True)
+        table.add_column("Source", width=11)
+        table.add_column("Relevance", justify="right", width=9)
+        table.add_column("Date", width=12)
+        table.add_column("Title")
+        for c in candidates:
+            table.add_row(c.source, f"{c.relevance_score:.2f}", c.date or "—", c.title[:70])
+        console.print(table)
+
+        confirmed = typer.confirm(f"\nFetch {len(candidates)} document(s)?", default=False)
+        if not confirmed:
+            raise typer.Exit(0)
+
+    # ── Run the full fetch pipeline ───────────────────────────────────────────
+    with console.status("[bold cyan]Fetching and ingesting…[/bold cyan]"):
+        result = fetch_corpus(
+            entities=list(entities),
+            geography=geography,
+            min_relevance=min_relevance,
+            max_docs=max_docs,
+            per_entity_limit=per_entity_limit,
+            silence_mode=silence_mode,
+            dry_run=False,
+        )
+
+    if result.fetched:
+        table = Table(title="Fetched Documents", show_header=True)
+        table.add_column("Source", width=11)
+        table.add_column("Chunks", justify="right", width=7)
+        table.add_column("Licence", width=8)
+        table.add_column("Title")
+        for f in result.fetched:
+            table.add_row(f.source, str(f.chunks_added), f.licence, f.title[:70])
+        console.print(table)
+
+    console.print(Panel(
+        f"Candidates found:    {result.candidates_found}\n"
+        f"Above threshold:     {result.candidates_above_threshold}\n"
+        f"Documents fetched:   {result.documents_fetched}\n"
+        f"Chunks added:        {result.chunks_added}\n"
+        f"Skipped (errors):    {len(result.skipped)}",
+        title="[bold green]Fetch complete[/bold green]",
+    ))
+
+    if result.skipped:
+        console.print("[dim]Skipped URLs:[/dim]")
+        for url in result.skipped:
+            console.print(f"  [dim]{url}[/dim]")
+
+
+@discover_app.command("web")
+def discover_web(
+    entities: list[str] = typer.Argument(
+        ..., help="Entity names to search for (e.g. 'Srebrenica' 'Mladic')"
+    ),
+    geography: str = typer.Option(..., help="Geography tag for chunk metadata and sources.csv"),
+    min_relevance: float = typer.Option(0.4, help="Minimum relevance score (0–1)"),
+    per_entity_limit: int = typer.Option(10, help="Max DDG results per template per entity"),
+    frontier_batch: int = typer.Option(30, help="Frontier URLs to visit per session"),
+    rediscover_every: int = typer.Option(4, help="Run fresh DDG/Wikipedia/CrossRef every N sessions"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show state and candidates — ingest nothing"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    loop: bool = typer.Option(False, "--loop", help="Run continuously until Ctrl-C"),
+    interval: int = typer.Option(900, help="Seconds between sessions (default: 15 min)"),
+    show_state: bool = typer.Option(False, "--state", help="Print agent state summary and exit"),
+) -> None:
+    """Autonomous web agent — continuously searches and ingests with persistent memory.
+
+    The agent maintains a state file (output/web_agent_state.json) tracking every
+    URL visited, a priority frontier of pending URLs, domain hit-rates, and query
+    template yield scores.  It adapts: high-yield queries run first; unproductive
+    domains are deprioritised.
+
+    Each session:
+      1. Drain frontier — visit queued URLs, extract new links, ingest quality docs
+      2. Every --rediscover-every sessions, run fresh DuckDuckGo / Wikipedia / CrossRef
+      3. All new URLs go into the frontier for future sessions
+
+    With --loop it runs indefinitely, sleeping --interval seconds between sessions.
+    State persists across restarts — safe to stop and resume at any time.
+
+    Examples:
+
+      # First run: discover and start building frontier
+      ai4saw discover web "Srebrenica" "Mladic" "VRS" "Bosnia" --geography Bosnia --yes
+
+      # Let it run overnight, re-querying every hour
+      ai4saw discover web "Srebrenica" "Mladic" --geography Bosnia --loop --interval 900 --yes
+
+      # Check what the agent knows
+      ai4saw discover web "Srebrenica" --geography Bosnia --state
+    """
+    from ai4saw.agents.web_agent import (
+        web_discover, drain_frontier, load_state, save_state,
+        get_state_summary,
+    )
+    from ai4saw.core.config import settings
+
+    contact_email = getattr(settings, "contact_email", "")
+    state = load_state()
+
+    # ── State summary mode ────────────────────────────────────────────────────
+    if show_state:
+        summary = get_state_summary(state)
+        console.print(Panel(
+            f"Sessions run:      {summary['sessions']}\n"
+            f"URLs visited:      {summary['urls_visited']}\n"
+            f"Frontier size:     {summary['frontier_size']}\n"
+            f"Docs ingested:     {summary['docs_ingested']}\n"
+            f"Chunks added:      {summary['chunks_added']}\n"
+            f"Last run:          {state.last_run or 'never'}",
+            title="[bold cyan]Web Agent State[/bold cyan]",
+        ))
+        if summary["top_domains"]:
+            t = Table(title="Top domains by hit rate")
+            t.add_column("Domain"); t.add_column("Score", justify="right")
+            t.add_column("Hits", justify="right"); t.add_column("Attempts", justify="right")
+            for domain, score, hits, attempts in summary["top_domains"]:
+                t.add_row(domain, f"{score:.2f}", str(hits), str(attempts))
+            console.print(t)
+        if summary["top_queries"]:
+            t = Table(title="Top query templates by yield")
+            t.add_column("Template key"); t.add_column("Yield/run", justify="right"); t.add_column("Runs", justify="right")
+            for key, rate, runs in summary["top_queries"]:
+                t.add_row(key, f"{rate:.2f}", str(runs))
+            console.print(t)
+        return
+
+    session = 0
+
+    while True:
+        session += 1
+        run_discovery = (session == 1) or (session % rediscover_every == 0)
+
+        if loop or session > 1:
+            console.print(f"\n[bold cyan]── Web agent session #{state.session_count + 1} ──[/bold cyan]")
+
+        # ── Phase 1: Drain frontier ───────────────────────────────────────────
+        if state.frontier:
+            console.print(
+                f"[dim]Frontier: {len(state.frontier)} pending URLs. "
+                f"Draining {min(frontier_batch, len(state.frontier))}…[/dim]"
+            )
+            if not dry_run:
+                import httpx as _httpx
+                with _httpx.Client(timeout=20.0) as client:
+                    docs_in, chunks_in = drain_frontier(
+                        state, geography, client,
+                        batch_size=frontier_batch,
+                        min_relevance=min_relevance,
+                    )
+                state.total_docs_ingested += docs_in
+                state.total_chunks_added += chunks_in
+                if docs_in:
+                    console.print(f"  Frontier drained: [bold]{docs_in}[/bold] docs, [bold]{chunks_in}[/bold] chunks")
+
+        # ── Phase 2: Fresh discovery (every N sessions) ───────────────────────
+        if run_discovery:
+            console.print("[dim]Running fresh discovery (DDG · Wikipedia · CrossRef)…[/dim]")
+            with console.status("[bold cyan]Searching…[/bold cyan]"):
+                result, state = web_discover(
+                    entities=list(entities),
+                    per_entity_limit=per_entity_limit,
+                    contact_email=contact_email,
+                    state=state,
+                )
+
+            console.print(
+                f"  Discovery: [bold]{result.new_documents}[/bold] new URLs → "
+                f"frontier now [bold]{len(state.frontier)}[/bold]"
+            )
+
+            if dry_run:
+                above = [d for d in result.documents if d.relevance_score >= min_relevance]
+                if above:
+                    t = Table(title="Candidates (dry run — not ingested)")
+                    t.add_column("Source", width=11); t.add_column("Rel.", justify="right", width=5); t.add_column("Title")
+                    for d in above[:25]:
+                        t.add_row(d.source, f"{d.relevance_score:.2f}", d.title[:70])
+                    console.print(t)
+
+        # ── Save state ────────────────────────────────────────────────────────
+        if not dry_run:
+            save_state(state)
+
+        # ── Summary ───────────────────────────────────────────────────────────
+        console.print(Panel(
+            f"Session:           #{state.session_count}\n"
+            f"URLs visited:      {len(state.visited_urls)}\n"
+            f"Frontier pending:  {len(state.frontier)}\n"
+            f"Total ingested:    {state.total_docs_ingested} docs / {state.total_chunks_added} chunks",
+            title="[bold green]Session complete[/bold green]",
+        ))
+
+        if not loop:
+            break
+
+        console.print(f"[dim]Next session in {interval}s (Ctrl-C to stop).[/dim]")
+        time.sleep(interval)
+
+
+@discover_app.command("agent")
+def discover_agent(
+    entities: list[str] = typer.Argument(
+        ..., help="Seed entity names (e.g. 'Srebrenica' 'Mladic')"
+    ),
+    geography: str = typer.Option(..., help="Geography tag for chunk metadata and sources.csv"),
+    min_relevance: float = typer.Option(0.4, help="Minimum frontier priority to ingest"),
+    frontier_batch: int = typer.Option(20, help="Frontier URLs to visit per session"),
+    per_entity_limit: int = typer.Option(10, help="Max DDG results per template per entity (seed)"),
+    seed_every: int = typer.Option(6, help="Re-seed frontier via web discovery every N sessions"),
+    max_reasoning: int = typer.Option(8, help="Max docs to run LLM reasoning on per session"),
+    loop: bool = typer.Option(False, "--loop", help="Run continuously until Ctrl-C"),
+    interval: int = typer.Option(1200, help="Seconds between sessions (default: 20 min)"),
+    show_state: bool = typer.Option(False, "--state", help="Print agent state and exit"),
+    show_log: int = typer.Option(0, "--log", help="Print last N reasoning entries and exit"),
+) -> None:
+    """Agentic discovery — LLM reads each document and decides what to search for next.
+
+    This is a true reasoning loop, not a template crawler.  After ingesting each
+    document the LLM extracts novel entities and generates specific search queries
+    based on what it found.  Those queries feed the next session's frontier.
+
+    Example snowball:
+      Seed: "Srebrenica"  →  finds ICTY Krstić judgment
+      LLM reads it  →  extracts "Dražen Erdemović", "10th Sabotage Detachment"
+      LLM generates:
+        "Dražen Erdemović plea agreement ICTY 1996"
+        "10th Sabotage Detachment VRS Branjevo Farm executions"
+      →  3 queries no template would have produced
+
+    State:  output/agent_discover_state.json
+    Log:    output/agent_discover_log.jsonl
+
+    Examples:
+
+      ai4saw discover agent "Srebrenica" "Mladic" --geography Bosnia --yes
+
+      ai4saw discover agent "El Geneina" "Masalit" "RSF" --geography Sudan --loop --yes
+
+      ai4saw discover agent "Srebrenica" --geography Bosnia --state
+
+      ai4saw discover agent "Srebrenica" --geography Bosnia --log 5
+    """
+    from ai4saw.agents.agent_discover import (
+        load_agent_state, save_agent_state, run_agent_session,
+        get_agent_summary, _seed_frontier, AGENT_LOG_FILE,
+    )
+    from ai4saw.core.config import settings
+
+    contact_email = getattr(settings, "contact_email", "")
+    state = load_agent_state()
+
+    # Keep initial_entities updated in state (idempotent)
+    for e in entities:
+        if e not in state.initial_entities:
+            state.initial_entities.append(e)
+
+    # ── State summary ─────────────────────────────────────────────────────────
+    if show_state:
+        summary = get_agent_summary(state)
+        console.print(Panel(
+            f"Sessions:            {summary['sessions']}\n"
+            f"URLs visited:        {summary['urls_visited']}\n"
+            f"Frontier pending:    {summary['frontier_size']}\n"
+            f"Docs ingested:       {summary['docs_ingested']}\n"
+            f"Chunks added:        {summary['chunks_added']}\n"
+            f"Docs reasoned (LLM): {summary['docs_reasoned']}\n"
+            f"Novel entities:      {summary['novel_entities']}\n"
+            f"Queries queued:      {summary['queries_queued']}\n"
+            f"Queries executed:    {summary['queries_executed']}\n"
+            f"Last run:            {summary['last_run'] or 'never'}",
+            title="[bold cyan]Agent Discover State[/bold cyan]",
+        ))
+        if summary["top_novel_entities"]:
+            console.print("[bold]Novel entities discovered by LLM:[/bold]")
+            for e in summary["top_novel_entities"]:
+                info = state.discovered_entities.get(e, {})
+                console.print(f"  {e}  [dim](from {info.get('from_url', '?')[:60]})[/dim]")
+        return
+
+    # ── Log viewer ────────────────────────────────────────────────────────────
+    if show_log > 0:
+        if not AGENT_LOG_FILE.exists():
+            console.print("[yellow]No reasoning log yet.[/yellow]")
+            return
+        entries = AGENT_LOG_FILE.read_text(encoding="utf-8").strip().splitlines()
+        for line in entries[-show_log:]:
+            try:
+                entry = json.loads(line)
+                console.print(Panel(
+                    f"[bold]{entry.get('source_title', '?')[:80]}[/bold]\n"
+                    f"URL: {entry.get('source_url', '')[:80]}\n\n"
+                    f"Novel entities: {entry.get('novel_entities', [])}\n\n"
+                    f"Queries generated:\n" +
+                    "\n".join(f"  • {q}" for q in entry.get("generated_queries", [])) +
+                    f"\n\nReasoning: {entry.get('reasoning', '')}",
+                    title=f"[cyan]{entry.get('timestamp', '')[:19]}[/cyan]",
+                ))
+            except Exception:
+                pass
+        return
+
+    session_number = 0
+
+    while True:
+        session_number += 1
+        console.print(
+            f"\n[bold cyan]── Agent session #{state.session_count + 1} "
+            f"(frontier: {len(state.frontier)}, queued queries: {len(state.query_queue)}) ──[/bold cyan]"
+        )
+
+        # ── Seed frontier on first run or every N sessions ────────────────────
+        needs_seed = (len(state.frontier) < 5) or (state.session_count % seed_every == 0)
+        if needs_seed:
+            console.print("[dim]Seeding frontier via web discovery…[/dim]")
+            with console.status("[bold cyan]Searching (DDG · Wikipedia · CrossRef)…[/bold cyan]"):
+                new_count = _seed_frontier(
+                    list(state.initial_entities) + list(state.discovered_entities.keys())[:10],
+                    state,
+                    per_entity_limit=per_entity_limit,
+                    contact_email=contact_email,
+                )
+            console.print(f"  Frontier seeded: [bold]{len(state.frontier)}[/bold] pending URLs")
+
+        # ── Run agent session ─────────────────────────────────────────────────
+        with console.status("[bold cyan]Draining frontier · reasoning · executing novel queries…[/bold cyan]"):
+            docs_in, chunks_in, reasonings = run_agent_session(
+                state=state,
+                geography=geography,
+                frontier_batch=frontier_batch,
+                min_relevance=min_relevance,
+                max_reasoning=max_reasoning,
+            )
+
+        # ── Display reasoning results ─────────────────────────────────────────
+        if reasonings:
+            t = Table(title="LLM Reasoning this session", show_header=True)
+            t.add_column("Doc", max_width=40)
+            t.add_column("Novel entities", max_width=30)
+            t.add_column("Queries generated", max_width=50)
+            for r in reasonings:
+                t.add_row(
+                    r.source_title[:40],
+                    ", ".join(r.novel_entities[:3]),
+                    "\n".join(r.generated_queries[:2]),
+                )
+            console.print(t)
+
+        save_agent_state(state)
+
+        console.print(Panel(
+            f"Docs ingested:       {docs_in}\n"
+            f"Chunks added:        {chunks_in}\n"
+            f"LLM reasonings:      {len(reasonings)}\n"
+            f"Novel entities (total): {len(state.discovered_entities)}\n"
+            f"Frontier pending:    {len(state.frontier)}\n"
+            f"Queries queued:      {len(state.query_queue)}",
+            title="[bold green]Session complete[/bold green]",
+        ))
+
+        if not loop:
+            break
+
+        console.print(f"[dim]Next session in {interval}s (Ctrl-C to stop).[/dim]")
+        time.sleep(interval)
 
 
 # ── Export ─────────────────────────────────────────────────────────────────

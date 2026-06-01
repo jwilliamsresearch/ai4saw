@@ -2,22 +2,30 @@
 
 ## The idea
 
-The silence detector identifies what's missing from the corpus. This module tries to fill those gaps by searching external APIs for documents not yet ingested.
+The silence detector identifies what's missing from the corpus. This module fills those gaps by querying six free, no-registration APIs for documents not yet ingested.
 
 ## APIs
 
-Both APIs are **free and require no authentication**.
+All six sources are **free and require no authentication**.
 
-| API | Coverage | URL |
+| API | Coverage | Rate limit |
 |---|---|---|
-| **ReliefWeb** | UN and NGO humanitarian reports, situation assessments | `api.reliefweb.int` |
-| **GDELT** | Global news in 65+ languages, real-time | `api.gdeltproject.org` |
+| **OpenAlex** | Open-access academic papers and working papers (200M+ works) | Generous; use `CONTACT_EMAIL` for polite pool |
+| **Semantic Scholar** | AI-curated academic index — distinct corpus from OpenAlex | 100 req/5 min unauthenticated |
+| **arXiv** | Preprints in political science, peace studies, economics | Generous |
+| **Internet Archive** | NGO reports, historical news, HRW/Amnesty PDFs, grey literature | Generous |
+| ~~**UN Digital Library**~~ | ~~UN documents~~ | Deferred — API requires authentication |
+| **GDELT** | Global news in 65+ languages, real-time | **Strict: 1 req/5s per IP** — batched |
+
+> **OpenAlex polite pool:** Set `CONTACT_EMAIL=your@email.com` in `.env` for faster responses.
+
+> **GDELT rate limiting:** GDELT enforces 1 request per 5 seconds per IP. The pipeline sends **one batched OR query** for all entities rather than one query per entity. Do not call the GDELT endpoint outside this module.
 
 ## Usage
 
 ```bash
-# Search by entity names
-ai4saw discover run "El Geneina" "Masalit" "Rapid Support Forces"
+# Search by entity names — queries all six sources
+ai4saw discover run "Srebrenica" "Mladic" "VRS"
 
 # Auto-discover from entity registry (top-N by frequency)
 ai4saw discover run --from-registry --top-n 10
@@ -31,23 +39,23 @@ ai4saw discover run "Foča" "Prijedor" "Brčko"
 
 ## Deduplication
 
-Results are checked against `corpus/sources.csv`. Documents already registered (by URL) are excluded. The `new_documents` count in the output shows how many are genuinely new.
+Results are checked against `corpus/sources.csv` by URL. Documents already registered are excluded. The `new_documents` count shows how many are genuinely new.
 
 ## Output
 
 ```json title="output/discovered_documents.json"
 {
-  "trigger_entities": ["El Geneina", "Masalit"],
-  "query_count": 4,
-  "new_documents": 12,
+  "trigger_entities": ["Srebrenica", "Mladic"],
+  "query_count": 11,
+  "new_documents": 47,
   "documents": [
     {
-      "title": "Sudan: RSF Attacks on Masalit in El Geneina",
-      "url": "https://reliefweb.int/report/sudan/...",
-      "source": "reliefweb",
-      "date": "2023-05-02",
-      "relevance_score": 0.82,
-      "trigger_entity": "El Geneina"
+      "title": "Srebrenica: A 'Safe' Area",
+      "url": "https://archive.org/details/srebrenica-report",
+      "source": "internetarchive",
+      "date": "1995-11-01",
+      "relevance_score": 0.80,
+      "trigger_entity": "Srebrenica"
     }
   ]
 }
@@ -55,7 +63,9 @@ Results are checked against `corpus/sources.csv`. Documents already registered (
 
 ## Workflow
 
-Discovery output is for **researcher review only**. The pipeline never ingests automatically.
+### Passive (review mode)
+
+`discover run` is for researcher review only — it never ingests automatically.
 
 ```
 discover run → review output/discovered_documents.json
@@ -63,16 +73,23 @@ discover run → review output/discovered_documents.json
              → ai4saw ingest file <url>
 ```
 
-## Silence-driven discovery
+### Active (automated fetch)
 
-The most effective discovery strategy is to query locations identified by the silence detector:
+`discover fetch` extends this into a full pipeline: discover → download → register → ingest in one command. See [Automated Corpus Fetch](corpus-fetch.md).
 
 ```bash
-# Get silence candidates first
-# (run after graph build)
-
-# Then discover for the silenced locations
-ai4saw discover run "Nyala" "Zalingei" "Geneina" --per-entity-limit 15
+ai4saw discover fetch "Srebrenica" "Mladic" --geography Bosnia --max-docs 30
 ```
 
-High-silence, high-conflict locations are where the corpus gap is largest and the potential new evidence is most valuable.
+## Silence-driven discovery
+
+The most effective strategy is to query locations identified by the silence detector:
+
+```bash
+# Get silence candidates first (run after graph build)
+
+# Then target the gaps directly
+ai4saw discover run "Nyala" "Zalingei" "Geneina" --per-entity-limit 25
+```
+
+High-silence, high-conflict locations are where corpus gaps are largest and new evidence most valuable.

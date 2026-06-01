@@ -25,6 +25,7 @@ AI4SAW automates intelligence extraction from unstructured conflict and human ri
 7. **Contradiction Detection** — surfaces conflicting claims across sources for researcher review
 8. **Multi-hop Agent** — LangGraph ReAct agent that chains tool calls for complex temporal/causal questions
 9. **Active Corpus Discovery** — queries ReliefWeb and GDELT to find documents not yet in the corpus
+10. **Automated Corpus Fetch** — discovers, downloads, registers, and ingests from six free APIs: OpenAlex, Semantic Scholar, arXiv, Internet Archive, UN Digital Library, GDELT (news, batched)
 10. **Perpetrator Command Network** — betweenness centrality + community detection on the actor graph
 11. **MCP Server** — exposes the corpus as a tool inside Claude Desktop (`ai4saw-mcp`)
 12. **LLM-as-Judge** — automated extraction quality scoring by a frontier model without hand labels
@@ -128,14 +129,23 @@ ai4saw analyze contradictions
 ai4saw analyze network --gexf
 ```
 
-### Step 6 — Discover
+### Step 6 — Discover and fetch
 
 ```bash
-# Search for new documents by entity names
+# Passive discovery: find candidates for manual review
 ai4saw discover run "El Geneina" "Masalit" "Rapid Support Forces"
 
-# Or auto-discover from the entity registry
+# Auto-discover from entity registry
 ai4saw discover run --from-registry --label LOCATION --top-n 10
+
+# Active fetch: discover + download + register + ingest in one command
+ai4saw discover fetch "El Geneina" "Masalit" --geography Sudan --max-docs 20
+
+# Preview candidates without downloading
+ai4saw discover fetch "Srebrenica" "Mladic" --geography Bosnia --dry-run
+
+# Silence-driven fetch (targets coverage gaps detected by silence detector)
+ai4saw discover fetch "Foča" "Prijedor" --geography Bosnia --silence-mode --yes
 ```
 
 ### Step 7 — Export

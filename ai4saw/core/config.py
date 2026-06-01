@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 8
     rerank_top_n: int = 3
 
+    # Discovery
+    contact_email: str = ""  # OpenAlex polite pool — set to your email for faster responses
+
     # Logging
     log_level: str = "INFO"
     log_file: Path = Path("./logs/ai4saw.log")

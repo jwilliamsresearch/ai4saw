@@ -39,7 +39,8 @@ Unstructured text  →  Entities  →  Relations  →  Events
 | **Multi-hop Agent** | LangGraph ReAct agent for complex temporal/causal questions |
 | **Contradiction Detection** | Surfaces conflicting claims across sources |
 | **Network Analysis** | Betweenness centrality + Louvain community detection on actor graph |
-| **Corpus Discovery** | ReliefWeb + GDELT search for documents not yet in the corpus |
+| **Corpus Discovery** | OpenAlex + GDELT + Semantic Scholar + arXiv + Internet Archive |
+| **Autonomous Web Agent** | DuckDuckGo + Wikipedia + CrossRef + link-following; persistent frontier; adapts query strategy from hit-rate history |
 | **MCP Server** | Exposes the corpus as a tool inside Claude Desktop |
 | **LLM-as-Judge** | Automated extraction quality scoring without hand labels |
 

@@ -244,7 +244,7 @@ class DiscoveredDocument(BaseModel):
     """A document discovered via external API search that is not yet in the corpus."""
     title: str
     url: str
-    source: Literal["reliefweb", "gdelt", "manual"]
+    source: Literal["openalex", "gdelt", "semanticscholar", "arxiv", "internetarchive", "duckduckgo", "wikipedia", "crossref", "manual"]
     date: Optional[str] = None
     relevance_score: float = Field(..., ge=0.0, le=1.0)
     trigger_entity: str = Field(..., description="Entity that triggered this discovery")
