@@ -40,7 +40,7 @@ RERANK_TOP_N=3
 For questions about specific actors or relations, use GraphRAG:
 
 ```bash
-ai4saw graph query "What did the Drina Corps do in Srebrenica in 1995?"
+ai4saw graph query "What did the Drina Corps do in Location Alpha in 1995?"
 ```
 
 This retrieves the entity's neighbourhood from the knowledge graph and combines it with vector search. See [GraphRAG](../advanced/graph-rag.md).
@@ -50,7 +50,7 @@ This retrieves the entity's neighbourhood from the knowledge graph and combines 
 For complex temporal or causal questions:
 
 ```bash
-ai4saw graph agent "What was happening in the months before Srebrenica?"
+ai4saw graph agent "What was happening in the months before Location Alpha?"
 ```
 
 The agent chains multiple tool calls until it has enough context. See [Multi-hop Agent](../advanced/agent.md).

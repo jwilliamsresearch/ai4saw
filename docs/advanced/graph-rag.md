@@ -30,7 +30,7 @@ Output: `data/knowledge_graph.json`
 ### Standard graph query
 
 ```bash
-ai4saw graph query "What did the Drina Corps do in Srebrenica?"
+ai4saw graph query "What did the Drina Corps do in Location Alpha?"
 ```
 
 This:
@@ -42,16 +42,16 @@ This:
 ### Temporal graph query
 
 ```bash
-# Command structure as of 11 July 1995
-ai4saw graph query "Drina Corps command" --at 1995-07-11
+# Command structure as of 11 a specific date
+ai4saw graph query "Drina Corps command" --at YYYY-MM-DD
 
-# Who was active in El Geneina before April 2023?
-ai4saw graph query "El Geneina actors" --at 2023-04-14
+# Who was active in Location Beta before April 2023?
+ai4saw graph query "Location Beta actors" --at 2023-04-14
 ```
 
 When `--at DATE` is provided, edges where `valid_from > DATE` or `valid_to < DATE` are excluded. Edges with no date are always included (assumed continuously valid).
 
-This enables questions like *"what was the command structure before Srebrenica?"* that require filtering a 3-year corpus down to a single point in time.
+This enables questions like *"what was the command structure before Location Alpha?"* that require filtering a 3-year corpus down to a single point in time.
 
 ## How temporal filtering works
 
@@ -64,13 +64,13 @@ Every edge in the graph has:
 }
 ```
 
-At query time with `--at 1995-07-11`:
+At query time with `--at YYYY-MM-DD`:
 
 | Edge | valid_from | valid_to | Included? |
 |---|---|---|---|
-| Mladić commanded Drina Corps | 1992-04-06 | null | ✓ (started before, still active) |
+| Commander Alpha� commanded Drina Corps | 1992-04-06 | null | ✓ (started before, still active) |
 | Tolimir ordered execution | 1995-07-13 | null | ✗ (started after query date) |
-| RSF in El Geneina | 2023-04-15 | null | ✗ (future) |
+| Armed-Group-Beta in Location Beta | 2023-04-15 | null | ✗ (future) |
 | Karadžić directed operations | null | null | ✓ (no date info — assume always valid) |
 
 ## Programmatic use
@@ -89,7 +89,7 @@ context = graph_context_for_query(
     "Drina Corps command structure",
     graph=graph,
     hops=2,
-    at_date="1995-07-11",
+    at_date="YYYY-MM-DD",
 )
 
 # NetworkX for custom analysis
@@ -103,16 +103,16 @@ print(nx.info(G))
 The rendered graph context looks like:
 
 ```
-=== Knowledge Graph Context (at 1995-07-11) ===
+=== Knowledge Graph Context (at YYYY-MM-DD) ===
 
 [ORG] Drina Corps
-  Also known as: the Drina Corps, VRS Drina Corps
-  → commanded by → Radislav Krstić (1995-07-11 | Srebrenica) [conf=0.95]
-    Evidence: "Krstić assumed command of the Drina Corps on 11 July 1995"
-  → participated in → Srebrenica massacre (1995-07-11 | Srebrenica) [conf=0.97]
+  Also known as: the Drina Corps, Armed-Group-Alpha Drina Corps
+  → commanded by → Radislav Commander Beta� (YYYY-MM-DD | Location Alpha) [conf=0.95]
+    Evidence: "Commander Beta� assumed command of the Drina Corps on 11 a specific date"
+  → participated in → Location Alpha massacre (YYYY-MM-DD | Location Alpha) [conf=0.97]
     Evidence: "Drina Corps units executed prisoners at Kravica warehouse"
 
-[PERSON] Radislav Krstić
-  → commanded → Drina Corps (valid from 1995-07-11)
-  → convicted by → ICTY (2001)
+[PERSON] Radislav Commander Beta�
+  → commanded → Drina Corps (valid from YYYY-MM-DD)
+  → convicted by → International Tribunal (2001)
 ```

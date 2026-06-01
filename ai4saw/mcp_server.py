@@ -4,7 +4,7 @@ This makes the entire corpus + knowledge graph available as a first-class tool
 inside Claude Desktop, Claude.ai, and any other MCP-compatible AI client.
 
 A researcher can open Claude Desktop and ask:
-  "What happened in El Geneina in April 2023?"
+  "What happened in Location Beta in April 2023?"
 and Claude will call search_corpus and query_knowledge_graph directly,
 returning a cited answer grounded in the indexed documents.
 
@@ -119,7 +119,7 @@ def query_knowledge_graph(
     Args:
         entity_name: Name of the actor, organisation, location, or event to look up.
         hops: Neighbourhood depth (1 = direct relations, 2 = friends-of-friends).
-        at_date: ISO 8601 date (e.g. "1995-07-11"). When set, only relations
+        at_date: ISO 8601 date (e.g. "YYYY-MM-DD"). When set, only relations
             valid on that date are shown — enabling temporal graph queries.
     """
     try:
@@ -150,7 +150,7 @@ def find_entity(name: str) -> str:
     Returns canonical name, all known aliases, occurrence count across the
     corpus, and which source chunks mention this entity.
 
-    Use this to: resolve abbreviations ("RSF" → "Rapid Support Forces"),
+    Use this to: resolve abbreviations ("Armed-Group-Beta" → "Rapid Support Forces"),
     check if an entity is in the corpus, find all surface forms of an actor.
 
     Args:

@@ -49,7 +49,7 @@ class TestTrustedDomain:
     @pytest.mark.parametrize("url", [
         "https://hrw.org/report.pdf",
         "https://www.amnesty.org/article",
-        "https://icty.org/judgment",
+        "https://tribunal.int/judgment",
         "https://archive.org/details/doc",
     ])
     def test_trusted_urls(self, url):
@@ -127,7 +127,7 @@ class TestQueryTemplateStats:
 class TestAddToFrontier:
     def test_adds_new_url(self, fresh_web_state):
         added = _add_to_frontier(
-            fresh_web_state, "https://hrw.org/new", 0.8, "Srebrenica", "duckduckgo"
+            fresh_web_state, "https://hrw.org/new", 0.8, "Location Alpha", "duckduckgo"
         )
         assert added is True
         assert len(fresh_web_state.frontier) == 1
@@ -135,7 +135,7 @@ class TestAddToFrontier:
     def test_does_not_add_visited_url(self, fresh_web_state):
         fresh_web_state.visited_urls["https://hrw.org/visited"] = {"chunks": 5}
         added = _add_to_frontier(
-            fresh_web_state, "https://hrw.org/visited", 0.8, "Srebrenica", "duckduckgo"
+            fresh_web_state, "https://hrw.org/visited", 0.8, "Location Alpha", "duckduckgo"
         )
         assert added is False
         assert len(fresh_web_state.frontier) == 0
@@ -148,13 +148,13 @@ class TestAddToFrontier:
 
     def test_frontier_item_fields_set_correctly(self, fresh_web_state):
         _add_to_frontier(
-            fresh_web_state, "https://icty.org/judgment.pdf",
-            0.75, "Mladic", "wikipedia", depth=1
+            fresh_web_state, "https://tribunal.int/judgment.pdf",
+            0.75, "Commander Alpha", "wikipedia", depth=1
         )
         item = fresh_web_state.frontier[0]
-        assert item.url == "https://icty.org/judgment.pdf"
+        assert item.url == "https://tribunal.int/judgment.pdf"
         assert item.priority == pytest.approx(0.75)
-        assert item.trigger_entity == "Mladic"
+        assert item.trigger_entity == "Commander Alpha"
         assert item.source == "wikipedia"
         assert item.depth == 1
 
@@ -205,20 +205,20 @@ class TestFrontierPriority:
 
 class TestRecordVisit:
     def test_adds_to_visited_urls(self, fresh_web_state):
-        _record_visit(fresh_web_state, "https://hrw.org/doc", "Srebrenica", 5)
+        _record_visit(fresh_web_state, "https://hrw.org/doc", "Location Alpha", 5)
         assert "https://hrw.org/doc" in fresh_web_state.visited_urls
 
     def test_records_chunk_count(self, fresh_web_state):
-        _record_visit(fresh_web_state, "https://hrw.org/doc", "Srebrenica", 7)
+        _record_visit(fresh_web_state, "https://hrw.org/doc", "Location Alpha", 7)
         assert fresh_web_state.visited_urls["https://hrw.org/doc"]["chunks"] == 7
 
     def test_updates_domain_stats_on_hit(self, fresh_web_state):
-        _record_visit(fresh_web_state, "https://hrw.org/doc", "Srebrenica", 3)
+        _record_visit(fresh_web_state, "https://hrw.org/doc", "Location Alpha", 3)
         assert fresh_web_state.domain_scores["hrw.org"].hits == 1
         assert fresh_web_state.domain_scores["hrw.org"].attempts == 1
 
     def test_updates_domain_stats_on_miss(self, fresh_web_state):
-        _record_visit(fresh_web_state, "https://hrw.org/doc", "Srebrenica", 0)
+        _record_visit(fresh_web_state, "https://hrw.org/doc", "Location Alpha", 0)
         assert fresh_web_state.domain_scores["hrw.org"].hits == 0
         assert fresh_web_state.domain_scores["hrw.org"].attempts == 1
 
@@ -246,10 +246,10 @@ class TestStatePersistence:
         monkeypatch.setattr(web_agent, "STATE_FILE", state_path)
 
         state = WebAgentState()
-        state.visited_urls["https://hrw.org/doc"] = {"chunks": 5, "entity": "Srebrenica"}
+        state.visited_urls["https://hrw.org/doc"] = {"chunks": 5, "entity": "Location Alpha"}
         state.frontier.append(
             FrontierItem(url="https://amnesty.org/p", priority=0.7,
-                         trigger_entity="Mladic", source="ddg")
+                         trigger_entity="Commander Alpha", source="ddg")
         )
         state.session_count = 3
 

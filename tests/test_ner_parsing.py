@@ -1,4 +1,4 @@
-"""Tests for NER response parsing — no LLM, no network.
+﻿"""Tests for NER response parsing — no LLM, no network.
 
 _parse_ner_response is the most failure-prone function in the pipeline:
 the LLM output format varies, markdown fences appear unexpectedly,
@@ -23,19 +23,19 @@ class TestParseNerResponse:
     def test_clean_json(self):
         payload = json.dumps({
             "entities": [
-                {"text": "Ratko Mladić", "label": "PERSON", "confidence": 0.95},
-                {"text": "VRS", "label": "ORG", "confidence": 0.90},
+                {"text": "Commander Alpha", "label": "PERSON", "confidence": 0.95},
+                {"text": "Armed-Group-Alpha", "label": "ORG", "confidence": 0.90},
             ]
         })
         result = _parse_ner_response(payload, CHUNK_ID)
         assert isinstance(result, NERResult)
         assert len(result.entities) == 2
         assert result.source_chunk_id == CHUNK_ID
-        assert result.entities[0].text == "Ratko Mladić"
+        assert result.entities[0].text == "Commander Alpha"
 
     def test_json_in_backtick_fence(self):
         payload = "```\n" + json.dumps({"entities": [
-            {"text": "Srebrenica", "label": "LOCATION", "confidence": 0.98}
+            {"text": "Location Alpha", "label": "LOCATION", "confidence": 0.98}
         ]}) + "\n```"
         result = _parse_ner_response(payload, CHUNK_ID)
         assert len(result.entities) == 1
@@ -43,10 +43,10 @@ class TestParseNerResponse:
 
     def test_json_in_json_fence(self):
         payload = "```json\n" + json.dumps({"entities": [
-            {"text": "ICTY", "label": "ORG", "confidence": 0.85}
+            {"text": "International Tribunal", "label": "ORG", "confidence": 0.85}
         ]}) + "\n```"
         result = _parse_ner_response(payload, CHUNK_ID)
-        assert result.entities[0].text == "ICTY"
+        assert result.entities[0].text == "International Tribunal"
 
     def test_empty_entities_list(self):
         payload = json.dumps({"entities": []})
@@ -83,7 +83,7 @@ class TestParseNerResponse:
 
     def test_entity_with_span_positions(self):
         payload = json.dumps({"entities": [
-            {"text": "Mladic", "label": "PERSON", "confidence": 0.9,
+            {"text": "Commander Alpha", "label": "PERSON", "confidence": 0.9,
              "span_start": 4, "span_end": 10}
         ]})
         result = _parse_ner_response(payload, CHUNK_ID)
@@ -113,8 +113,8 @@ class TestBuildFewShotBlock:
         assert "Text B" in block
 
     def test_unicode_preserved_in_output(self):
-        examples = [{"input": "Mladić", "output": {"entities": [
-            {"text": "Mladić", "label": "PERSON", "confidence": 0.9}
+        examples = [{"input": "Commander Alpha", "output": {"entities": [
+            {"text": "Commander Alpha", "label": "PERSON", "confidence": 0.9}
         ]}}]
         block = _build_few_shot_block(examples)
-        assert "Mladić" in block
+        assert "Commander Alpha" in block

@@ -20,7 +20,7 @@ Six free, no-registration sources:
 
   UN Digital Library (https://digitallibrary.un.org/):
     UN Secretariat documents — SG reports, Security Council resolutions, OHCHR
-    submissions. Directly relevant for Bosnia/Sudan corpora. Per-entity.
+    submissions. Directly relevant for conflict-region/Sudan corpora. Per-entity.
 
   GDELT Project (https://gdeltproject.org/):
     Global news in 65+ languages. Strict 1 req/5s rate limit — batched across

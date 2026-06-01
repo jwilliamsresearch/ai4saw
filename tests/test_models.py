@@ -1,4 +1,4 @@
-"""Tests for all Pydantic v2 schemas in core/models.py.
+﻿"""Tests for all Pydantic v2 schemas in core/models.py.
 
 These are the contracts the rest of the pipeline depends on.
 A schema change that breaks validation here breaks everything downstream.
@@ -54,7 +54,7 @@ class TestChunkMetadata:
             doc_type="legal",
             language="bs",
             date_published=date(1995, 7, 11),
-            geography="Bosnia",
+            geography="conflict-region",
             chunk_index=5,
         )
         assert m.date_published == date(1995, 7, 11)
@@ -101,7 +101,7 @@ class TestEntity:
             Entity(text="X", label="UNKNOWN_TYPE", confidence=0.5)
 
     def test_optional_spans(self):
-        e = Entity(text="Mladic", label="PERSON", confidence=0.95, span_start=10, span_end=16)
+        e = Entity(text="Commander Alpha", label="PERSON", confidence=0.95, span_start=10, span_end=16)
         assert e.span_start == 10
         assert e.span_end == 16
 
@@ -115,11 +115,11 @@ class TestNERResult:
 
     def test_populated(self):
         r = NERResult(
-            entities=[Entity(text="Mladic", label="PERSON", confidence=0.95)],
+            entities=[Entity(text="Commander Alpha", label="PERSON", confidence=0.95)],
             source_chunk_id="chunk_001",
         )
         assert len(r.entities) == 1
-        assert r.entities[0].text == "Mladic"
+        assert r.entities[0].text == "Commander Alpha"
 
 
 # ── Relation ───────────────────────────────────────────────────────────────────
@@ -127,11 +127,11 @@ class TestNERResult:
 class TestRelation:
     def test_valid(self):
         r = Relation(
-            subject="Mladic",
+            subject="Commander Alpha",
             predicate="commanded",
-            object="VRS",
+            object="Armed-Group-Alpha",
             confidence=0.9,
-            evidence="General Mladic commanded VRS forces",
+            evidence="Commander Alpha commanded Armed-Group-Alpha forces",
         )
         assert r.predicate == "commanded"
         assert r.location is None
@@ -139,13 +139,13 @@ class TestRelation:
 
     def test_with_optional_fields(self):
         r = Relation(
-            subject="RSF",
+            subject="Armed-Group-Beta",
             predicate="attacked",
-            object="El Geneina",
-            location="Darfur",
+            object="Location Beta",
+            location="Province Beta",
             date="2023-04-15",
             confidence=0.85,
-            evidence="RSF forces attacked El Geneina on 15 April",
+            evidence="Armed-Group-Beta forces attacked Location Beta on 15 April",
         )
         assert r.date == "2023-04-15"
 
@@ -181,7 +181,7 @@ class TestDiscoveredDocument:
     def test_all_valid_sources(self, source):
         doc = DiscoveredDocument(
             title="Test", url="https://example.com",
-            source=source, relevance_score=0.5, trigger_entity="Srebrenica",
+            source=source, relevance_score=0.5, trigger_entity="Location Alpha",
         )
         assert doc.source == source
 
@@ -213,7 +213,7 @@ class TestDiscoveredDocument:
 class TestDiscoveryResult:
     def test_valid(self, sample_discovered_doc):
         r = DiscoveryResult(
-            trigger_entities=["Srebrenica"],
+            trigger_entities=["Location Alpha"],
             documents=[sample_discovered_doc],
             query_count=5,
             new_documents=1,
@@ -229,7 +229,7 @@ class TestKnowledgeGraphEdge:
         edge = KnowledgeGraphEdge(
             source_id="n1", target_id="n2",
             predicate="commanded", confidence=0.9,
-            evidence="Mladic commanded VRS",
+            evidence="Commander Alpha commanded Armed-Group-Alpha",
             source_chunk_id="c1",
             valid_from="1992-04-01",
             valid_to="1996-12-14",
@@ -266,8 +266,8 @@ class TestContradictionPair:
 class TestSilenceCandidate:
     def test_silence_score_semantics(self):
         s = SilenceCandidate(
-            event_id="ACLED_001",
-            location="Foča",
+            event_id="conflict-events-dataset_001",
+            location="Location C",
             date="1992-04-01",
             conflict_intensity=0.9,
             retrieval_confidence=0.1,
@@ -285,10 +285,10 @@ class TestResolvedEntity:
             canonical_id="abc123",
             canonical_text="Rapid Support Forces",
             label="ORG",
-            aliases=["RSF", "the paramilitaries", "Janjaweed"],
+            aliases=["Armed-Group-Beta", "the paramilitaries", "Janjaweed"],
             occurrence_count=47,
             source_chunks=["c1", "c2"],
             mean_confidence=0.88,
         )
-        assert "RSF" in e.aliases
+        assert "Armed-Group-Beta" in e.aliases
         assert e.occurrence_count == 47

@@ -25,7 +25,7 @@ All six sources are **free and require no authentication**.
 
 ```bash
 # Search by entity names — queries all six sources
-ai4saw discover run "Srebrenica" "Mladic" "VRS"
+ai4saw discover run "Location Alpha" "Commander Alpha" "Armed-Group-Alpha"
 
 # Auto-discover from entity registry (top-N by frequency)
 ai4saw discover run --from-registry --top-n 10
@@ -34,7 +34,7 @@ ai4saw discover run --from-registry --top-n 10
 ai4saw discover run --from-registry --label LOCATION --top-n 5
 
 # Silence-driven discovery (highest yield)
-ai4saw discover run "Foča" "Prijedor" "Brčko"
+ai4saw discover run "Location C" "Location D" "Location E"
 ```
 
 ## Deduplication
@@ -45,17 +45,17 @@ Results are checked against `corpus/sources.csv` by URL. Documents already regis
 
 ```json title="output/discovered_documents.json"
 {
-  "trigger_entities": ["Srebrenica", "Mladic"],
+  "trigger_entities": ["Location Alpha", "Commander Alpha"],
   "query_count": 11,
   "new_documents": 47,
   "documents": [
     {
-      "title": "Srebrenica: A 'Safe' Area",
+      "title": "Location Alpha: A 'Safe' Area",
       "url": "https://archive.org/details/srebrenica-report",
       "source": "internetarchive",
       "date": "1995-11-01",
       "relevance_score": 0.80,
-      "trigger_entity": "Srebrenica"
+      "trigger_entity": "Location Alpha"
     }
   ]
 }
@@ -78,7 +78,7 @@ discover run → review output/discovered_documents.json
 `discover fetch` extends this into a full pipeline: discover → download → register → ingest in one command. See [Automated Corpus Fetch](corpus-fetch.md).
 
 ```bash
-ai4saw discover fetch "Srebrenica" "Mladic" --geography Bosnia --max-docs 30
+ai4saw discover fetch "Location Alpha" "Commander Alpha" --geography conflict-region --max-docs 30
 ```
 
 ## Silence-driven discovery
@@ -89,7 +89,7 @@ The most effective strategy is to query locations identified by the silence dete
 # Get silence candidates first (run after graph build)
 
 # Then target the gaps directly
-ai4saw discover run "Nyala" "Zalingei" "Geneina" --per-entity-limit 25
+ai4saw discover run "Location F" "Location G" "Location Beta" --per-entity-limit 25
 ```
 
 High-silence, high-conflict locations are where corpus gaps are largest and new evidence most valuable.

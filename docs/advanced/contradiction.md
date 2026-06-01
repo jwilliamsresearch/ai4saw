@@ -36,8 +36,8 @@ For each candidate pair, retrieve the source chunk text and call the LLM with `p
 | Type | Example |
 |---|---|
 | `factual` | Source A: "200 killed"; Source B: "fewer than 50 killed" |
-| `temporal` | Source A: "July 1995"; Source B: "August 1995" |
-| `attribution` | Source A: "ordered by MladiÄ‡"; Source B: "local commanders acting alone" |
+| `temporal` | Source A: "a specific date"; Source B: "August 1995" |
+| `attribution` | Source A: "ordered by Commander Alpha‡"; Source B: "local commanders acting alone" |
 | `numerical` | Source A: "detained for 6 months"; Source B: "detained for 3 weeks" |
 
 ## Configuration

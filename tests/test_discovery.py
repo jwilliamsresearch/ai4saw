@@ -25,16 +25,16 @@ from ai4saw.discovery.discovery import _dedup_and_rank, _known_urls, _relevance
 
 class TestRelevance:
     def test_exact_single_token_match(self):
-        score = _relevance("Srebrenica", "Srebrenica massacre 1995")
+        score = _relevance("Location Alpha", "Location Alpha massacre 1995")
         assert score > 0.4
 
     def test_no_match_returns_base(self):
-        score = _relevance("Srebrenica", "Unrelated agricultural report")
+        score = _relevance("Location Alpha", "Unrelated agricultural report")
         assert score == pytest.approx(0.4)
 
     def test_multi_token_entity_partial_match(self):
-        score_partial = _relevance("Bosnian Serb Army", "Bosnian forces in conflict")
-        score_full = _relevance("Bosnian Serb Army", "Bosnian Serb Army operations")
+        score_partial = _relevance("Armed Group Alpha", "Bosnian forces in conflict")
+        score_full = _relevance("Armed Group Alpha", "Armed Group Alpha operations")
         assert score_full > score_partial
 
     def test_score_capped_at_one(self):
@@ -48,8 +48,8 @@ class TestRelevance:
         assert score_low < score_high
 
     def test_case_insensitive(self):
-        score_upper = _relevance("SREBRENICA", "Srebrenica massacre")
-        score_lower = _relevance("srebrenica", "Srebrenica massacre")
+        score_upper = _relevance("SREBRENICA", "Location Alpha massacre")
+        score_lower = _relevance("srebrenica", "Location Alpha massacre")
         assert score_upper == score_lower
 
     def test_result_is_rounded(self):
@@ -155,7 +155,7 @@ class TestOpenAlexParsing:
         from ai4saw.discovery.discovery import _query_openalex
 
         work = {
-            "title": "Srebrenica Genocide Analysis",
+            "title": "Location Alpha Genocide Analysis",
             "open_access": {"oa_url": "https://openalex.org/paper.pdf", "is_oa": True},
             "publication_date": "2020-06-15",
             "abstract_inverted_index": None,
@@ -163,7 +163,7 @@ class TestOpenAlexParsing:
         mock_client = MagicMock()
         mock_client.get.return_value = self._make_response([work])
 
-        docs = _query_openalex("Srebrenica", limit=5, client=mock_client)
+        docs = _query_openalex("Location Alpha", limit=5, client=mock_client)
         assert len(docs) == 1
         assert docs[0].url == "https://openalex.org/paper.pdf"
         assert docs[0].source == "openalex"
@@ -206,14 +206,14 @@ class TestInternetArchiveParsing:
         mock_resp.json.return_value = {
             "response": {"docs": [{
                 "identifier": "srebrenica-1995-report",
-                "title": "Srebrenica 1995 Report",
+                "title": "Location Alpha 1995 Report",
                 "date": "1995-11-01",
-                "description": "ICTY investigation report",
+                "description": "International Tribunal investigation report",
             }]}
         }
         mock_client.get.return_value = mock_resp
 
-        docs = _query_internetarchive("Srebrenica", limit=5, client=mock_client)
+        docs = _query_internetarchive("Location Alpha", limit=5, client=mock_client)
         assert len(docs) == 1
         assert docs[0].url == "https://archive.org/details/srebrenica-1995-report"
         assert docs[0].source == "internetarchive"
@@ -275,7 +275,7 @@ class TestArxivParsing:
         from ai4saw.discovery.discovery import _query_arxiv_batch
 
         xml = self._make_arxiv_xml([{
-            "title": "War Crimes in Bosnia",
+            "title": "War Crimes in conflict-region",
             "published": "2021-03-15T00:00:00Z",
             "pdf_url": "https://arxiv.org/pdf/2001.00001",
             "summary": "Study of war crimes documentation",
@@ -287,7 +287,7 @@ class TestArxivParsing:
         mock_resp.text = xml
         mock_client.get.return_value = mock_resp
 
-        docs = _query_arxiv_batch(["Bosnia"], limit=5, client=mock_client)
+        docs = _query_arxiv_batch(["conflict-region"], limit=5, client=mock_client)
         assert len(docs) == 1
         assert docs[0].url == "https://arxiv.org/pdf/2001.00001"
         assert docs[0].date == "2021-03-15"

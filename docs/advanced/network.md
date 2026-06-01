@@ -1,4 +1,4 @@
-# Perpetrator Command Network
+﻿# Perpetrator Command Network
 
 ## What it does
 
@@ -16,7 +16,7 @@ Betweenness centrality measures how often a node lies on the shortest path betwe
 - **Liaison officers** who connect otherwise separate operational groups
 - **Logistical coordinators** who appear in both supply chains and command records
 
-These actors are often overlooked in favour of top-level commanders (high out-degree) or direct perpetrators (high in-degree). ICTY prosecutors found that mid-level commanders were frequently critical to attribution chains precisely because they had both the knowledge and the control to enable or prevent violations.
+These actors are often overlooked in favour of top-level commanders (high out-degree) or direct perpetrators (high in-degree). International Tribunal prosecutors found that mid-level commanders were frequently critical to attribution chains precisely because they had both the knowledge and the control to enable or prevent violations.
 
 ## Community detection
 
@@ -53,7 +53,7 @@ The GEXF file can be opened directly in [Gephi](https://gephi.org/) for interact
   "nodes": [
     {
       "id": "a3f1b2c4d5e6",
-      "label": "Ratko Mladić",
+      "label": "Commander Alpha",
       "entity_type": "PERSON",
       "betweenness_centrality": 0.847,
       "in_degree": 2,
@@ -61,10 +61,10 @@ The GEXF file can be opened directly in [Gephi](https://gephi.org/) for interact
       "community_id": 0
     }
   ],
-  "key_actors": ["Ratko Mladić", "Radislav Krstić", "Drina Corps"],
+  "key_actors": ["Commander Alpha", "Radislav Commander Beta", "Drina Corps"],
   "communities": {
-    "0": ["Ratko Mladić", "VRS Main Staff", "Radovan Karadžić"],
-    "1": ["Drina Corps", "Radislav Krstić", "Zdravko Tolimir"]
+    "0": ["Commander Alpha", "Armed-Group-Alpha Main Staff", "Radovan Karadžić"],
+    "1": ["Drina Corps", "Radislav Commander Beta", "Zdravko Tolimir"]
   },
   "total_nodes": 47,
   "total_edges": 89,

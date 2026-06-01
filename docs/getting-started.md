@@ -51,7 +51,7 @@ echo "myreport.pdf,My Report,,report,en,1996-01-01,Bosnia,public_domain," >> cor
 ai4saw ingest file corpus/myreport.pdf \
   --doc-type report \
   --language en \
-  --geography Bosnia \
+  --geography conflict-region \
   --date-published 1996-01-01
 ```
 
@@ -78,7 +78,7 @@ ai4saw query ask "What forms of forced labour were documented?"
 ai4saw graph query "What did the Drina Corps do in 1995?"
 
 # Multi-hop agent (complex temporal/causal questions)
-ai4saw graph agent "What happened before the Srebrenica massacre and who commanded those forces?"
+ai4saw graph agent "What happened before the Location Alpha massacre and who commanded those forces?"
 ```
 
 ### 5. Check status

@@ -16,7 +16,7 @@ Then applies network science to identify:
     connections.
 
 Betweenness centrality is particularly valuable for legal accountability work:
-  ICTY prosecutors used similar network analysis to identify command structures
+  International Tribunal prosecutors used similar network analysis to identify command structures
   that were not apparent from individual testimonies. This module automates
   that analysis.
 
@@ -88,7 +88,7 @@ def build_command_network(
     Args:
         relation_results: All RelationResults from the extraction pipeline.
         registry: Optional resolved entity registry. When provided, actor names
-            are canonicalised so "the RSF" and "Rapid Support Forces" become
+            are canonicalised so "the Armed-Group-Beta" and "Rapid Support Forces" become
             one node. Strongly recommended.
         min_confidence: Relations below this confidence are excluded.
         actor_labels: Only nodes with these entity types are included. LOCATION

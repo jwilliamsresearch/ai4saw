@@ -1,4 +1,4 @@
-"""Tests for the agentic discovery loop.
+﻿"""Tests for the agentic discovery loop.
 
 The LLM reasoning step is the critical path — if it fails silently,
 the corpus stops expanding. These tests verify:
@@ -30,9 +30,9 @@ from ai4saw.agents.web_agent import FrontierItem
 from ai4saw.core.models import DiscoveredDocument
 
 
-def _make_doc(url: str = "https://icty.org/judgment.pdf", entity: str = "Srebrenica") -> DiscoveredDocument:
+def _make_doc(url: str = "https://tribunal.int/judgment.pdf", entity: str = "Location Alpha") -> DiscoveredDocument:
     return DiscoveredDocument(
-        title="ICTY Krstić Trial Judgment",
+        title="International Tribunal Commander Beta Trial Judgment",
         url=url,
         source="duckduckgo",
         date="2001-08-02",
@@ -46,12 +46,12 @@ def _make_doc(url: str = "https://icty.org/judgment.pdf", entity: str = "Srebren
 class TestDiscoveryReasoning:
     def test_creation(self):
         r = DiscoveryReasoning(
-            source_url="https://icty.org/krstic.pdf",
-            source_title="Krstić Trial Judgment",
-            trigger_entity="Srebrenica",
-            novel_entities=["Dražen Erdemović", "10th Sabotage Detachment"],
-            generated_queries=["Erdemović plea ICTY 1996", "10th Sabotage Detachment Branjevo"],
-            reasoning="Erdemović is the primary execution witness.",
+            source_url="https://tribunal.int/krstic.pdf",
+            source_title="Commander Beta Trial Judgment",
+            trigger_entity="Location Alpha",
+            novel_entities=["Witness Alpha", "Unit Alpha"],
+            generated_queries=["Witness Alpha plea International Tribunal 1996", "Unit Alpha Branjevo"],
+            reasoning="Witness Alpha is the primary execution witness.",
         )
         assert len(r.novel_entities) == 2
         assert len(r.generated_queries) == 2
@@ -76,12 +76,12 @@ class TestDiscoveryReasoning:
 class TestLlmReason:
     def _valid_payload(self) -> str:
         return json.dumps({
-            "novel_entities": ["Dražen Erdemović", "10th Sabotage Detachment"],
+            "novel_entities": ["Witness Alpha", "Unit Alpha"],
             "queries": [
-                "Dražen Erdemović plea agreement ICTY 1996",
-                "10th Sabotage Detachment Branjevo Farm executions",
+                "Witness Alpha plea agreement International Tribunal 1996",
+                "Unit Alpha Site Alpha executions",
             ],
-            "reasoning": "Erdemović is the primary eyewitness to the Branjevo executions.",
+            "reasoning": "Witness Alpha is the primary eyewitness to the Branjevo executions.",
         })
 
     def test_parses_clean_json(self):
@@ -90,15 +90,15 @@ class TestLlmReason:
 
         with patch("ai4saw.core.providers.get_llm", return_value=mock_llm):
             result = _llm_reason(
-                text="Mladic ordered executions. Erdemović carried them out.",
+                text="Commander Alpha ordered executions. Witness Alpha carried them out.",
                 doc=_make_doc(),
-                initial_entities=["Srebrenica"],
-                geography="Bosnia",
+                initial_entities=["Location Alpha"],
+                geography="conflict-region",
                 known_entities=[],
             )
 
         assert result is not None
-        assert "Dražen Erdemović" in result.novel_entities
+        assert "Witness Alpha" in result.novel_entities
         assert len(result.generated_queries) == 2
         assert result.reasoning
 
@@ -108,7 +108,7 @@ class TestLlmReason:
         mock_llm.invoke.return_value = MagicMock(content=fenced)
 
         with patch("ai4saw.core.providers.get_llm", return_value=mock_llm):
-            result = _llm_reason("text", _make_doc(), ["Srebrenica"], "Bosnia", [])
+            result = _llm_reason("text", _make_doc(), ["Location Alpha"], "conflict-region", [])
 
         assert result is not None
         assert len(result.novel_entities) == 2
@@ -119,7 +119,7 @@ class TestLlmReason:
         mock_llm.invoke.return_value = MagicMock(content=fenced)
 
         with patch("ai4saw.core.providers.get_llm", return_value=mock_llm):
-            result = _llm_reason("text", _make_doc(), ["Srebrenica"], "Bosnia", [])
+            result = _llm_reason("text", _make_doc(), ["Location Alpha"], "conflict-region", [])
 
         assert result is not None
 
@@ -128,7 +128,7 @@ class TestLlmReason:
         mock_llm.invoke.return_value = MagicMock(content="Not JSON at all, sorry.")
 
         with patch("ai4saw.core.providers.get_llm", return_value=mock_llm):
-            result = _llm_reason("text", _make_doc(), ["Srebrenica"], "Bosnia", [])
+            result = _llm_reason("text", _make_doc(), ["Location Alpha"], "conflict-region", [])
 
         assert result is None
 
@@ -136,7 +136,7 @@ class TestLlmReason:
         mock_llm = MagicMock()
 
         with patch("ai4saw.core.providers.get_llm", return_value=mock_llm):
-            result = _llm_reason("", _make_doc(), ["Srebrenica"], "Bosnia", [])
+            result = _llm_reason("", _make_doc(), ["Location Alpha"], "conflict-region", [])
 
         assert result is None
         mock_llm.invoke.assert_not_called()
@@ -146,7 +146,7 @@ class TestLlmReason:
         mock_llm.invoke.side_effect = Exception("LLM unavailable")
 
         with patch("ai4saw.core.providers.get_llm", return_value=mock_llm):
-            result = _llm_reason("some text", _make_doc(), ["Srebrenica"], "Bosnia", [])
+            result = _llm_reason("some text", _make_doc(), ["Location Alpha"], "conflict-region", [])
 
         assert result is None
 
@@ -160,7 +160,7 @@ class TestLlmReason:
         mock_llm.invoke.return_value = MagicMock(content=payload)
 
         with patch("ai4saw.core.providers.get_llm", return_value=mock_llm):
-            result = _llm_reason("text", _make_doc(), ["X"], "Bosnia", [])
+            result = _llm_reason("text", _make_doc(), ["X"], "conflict-region", [])
 
         assert result is not None
         assert len(result.novel_entities) <= 10
@@ -175,7 +175,7 @@ class TestLlmReason:
         mock_llm.invoke.return_value = MagicMock(content=payload)
 
         with patch("ai4saw.core.providers.get_llm", return_value=mock_llm):
-            result = _llm_reason("text", _make_doc(), ["X"], "Bosnia", [])
+            result = _llm_reason("text", _make_doc(), ["X"], "conflict-region", [])
 
         assert result is not None
         assert len(result.generated_queries) <= 3
@@ -185,8 +185,8 @@ class TestLlmReason:
 
 class TestAgentDiscoverState:
     def test_initial_entities_stored(self, fresh_agent_state):
-        assert "Srebrenica" in fresh_agent_state.initial_entities
-        assert "Mladic" in fresh_agent_state.initial_entities
+        assert "Location Alpha" in fresh_agent_state.initial_entities
+        assert "Commander Alpha" in fresh_agent_state.initial_entities
 
     def test_query_queue_drains_correctly(self, fresh_agent_state):
         fresh_agent_state.query_queue = ["q1", "q2", "q3", "q4", "q5", "q6"]
@@ -196,15 +196,15 @@ class TestAgentDiscoverState:
         assert fresh_agent_state.query_queue == ["q6"]
 
     def test_novel_entities_accumulated(self, fresh_agent_state):
-        fresh_agent_state.discovered_entities["Dražen Erdemović"] = {
-            "from_url": "https://icty.org/krstic",
+        fresh_agent_state.discovered_entities["Witness Alpha"] = {
+            "from_url": "https://tribunal.int/krstic",
             "timestamp": "2026-06-01T12:00:00Z",
         }
-        assert "Dražen Erdemović" in fresh_agent_state.discovered_entities
+        assert "Witness Alpha" in fresh_agent_state.discovered_entities
 
     def test_executed_queries_tracked(self, fresh_agent_state):
-        fresh_agent_state.executed_queries.add("Erdemović plea 1996")
-        assert "Erdemović plea 1996" in fresh_agent_state.executed_queries
+        fresh_agent_state.executed_queries.add("Witness Alpha plea 1996")
+        assert "Witness Alpha plea 1996" in fresh_agent_state.executed_queries
 
 
 # ── State persistence ──────────────────────────────────────────────────────────
@@ -221,8 +221,8 @@ class TestAgentStatePersistence:
         path = tmp_path / "agent_state.json"
         monkeypatch.setattr(agent_discover, "AGENT_STATE_FILE", path)
 
-        state = AgentDiscoverState(initial_entities=["Srebrenica"])
-        state.discovered_entities["Erdemović"] = {"from_url": "https://icty.org", "timestamp": "2026-06-01"}
+        state = AgentDiscoverState(initial_entities=["Location Alpha"])
+        state.discovered_entities["Witness Alpha"] = {"from_url": "https://tribunal.int", "timestamp": "2026-06-01"}
         state.query_queue = ["query 1", "query 2"]
         state.session_count = 7
 
@@ -230,7 +230,7 @@ class TestAgentStatePersistence:
         loaded = load_agent_state()
 
         assert loaded.session_count == 7
-        assert "Erdemović" in loaded.discovered_entities
+        assert "Witness Alpha" in loaded.discovered_entities
         assert loaded.query_queue == ["query 1", "query 2"]
 
     def test_corrupt_file_returns_fresh(self, tmp_path, monkeypatch):
@@ -254,7 +254,7 @@ class TestReasoningLog:
         r = DiscoveryReasoning(
             source_url="https://x.com",
             source_title="Test Doc",
-            trigger_entity="Srebrenica",
+            trigger_entity="Location Alpha",
             novel_entities=["Entity A"],
             generated_queries=["query 1"],
             reasoning="test reasoning",

@@ -1,4 +1,4 @@
-"""Genuinely agentic corpus discovery.
+﻿"""Genuinely agentic corpus discovery.
 
 Unlike the stateful web crawler (web_agent.py), this agent has an LLM in the
 reasoning loop.  After each document is ingested, the LLM reads an excerpt and
@@ -14,13 +14,13 @@ ReAct loop per session
 
 Example snowball
 ─────────────────
-  Initial entity: "Srebrenica"
-  Ingests: ICTY judgment on Krstić
-  LLM extracts: Dražen Erdemović, 10th Sabotage Detachment, Branjevo Farm
+  Initial entity: "Location Alpha"
+  Ingests: International Tribunal judgment on Commander Beta
+  LLM extracts: Witness Alpha, Unit Alpha, Site Alpha
   LLM generates:
-    "Dražen Erdemović plea agreement ICTY 1996"
-    "10th Sabotage Detachment VRS executions July 1995"
-    "Branjevo Farm massacre witnesses"
+    "Witness Alpha plea agreement International Tribunal 1996"
+    "Unit Alpha Armed-Group-Alpha executions a specific date"
+    "Site Alpha massacre witnesses"
   → 3 novel, specific queries that no template would have produced
 
 State:   output/agent_discover_state.json
@@ -91,8 +91,8 @@ Based on the excerpt above:
 
 2. Specific search queries (2–3) that would find corroborating or extending evidence.
    Be precise: include names, dates, unit numbers, locations where possible.
-   Good: "Dražen Erdemović plea agreement ICTY 1996"
-   Bad:  "war crimes Bosnia"
+   Good: "Witness Alpha plea agreement International Tribunal 1996"
+   Bad:  "war crimes conflict-region"
 
 Output ONLY valid JSON (no text outside the braces):
 {{
@@ -313,7 +313,7 @@ def _ingest_and_capture(
         return 0, filename, ""
 
     # Sample from across the document — not just the first pages.
-    # A 50-page ICTY judgment has its cover/ToC in the first 2000 chars;
+    # A 50-page International Tribunal judgment has its cover/ToC in the first 2000 chars;
     # witness names and unit numbers are pages 8-40. Take 5 evenly-spaced
     # slices of 400 chars each so the LLM reasons on substantive content.
     text_excerpt = _sample_text(raw_docs, total_chars=2_000, slices=5)

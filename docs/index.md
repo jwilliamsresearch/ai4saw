@@ -1,11 +1,11 @@
-# AI4SAW
+﻿# AI4SAW
 
 **AI for Slavery and War — Open Intelligence Extraction Pipeline**
 
 AI4SAW is an open-source Python pipeline that automates intelligence extraction from unstructured conflict and human rights corpora. It turns NGO reports, legal filings, UN documents, and news archives into structured datasets that feed academic and policy research.
 
-**Primary domains:** conflict-related slavery in Bosnia and Sudan  
-**Designed to feed:** CDISaW, ACLED, PostGIS, and QGIS workflows
+**Primary domains:** conflict-related slavery and war crimes documentation  
+**Designed to feed:** downstream datasets, GIS workflows, and policy research pipelines
 
 ---
 
@@ -33,9 +33,9 @@ Unstructured text  →  Entities  →  Relations  →  Events
 
 | Feature | What it does |
 |---|---|
-| **Entity Resolution** | Cross-document deduplication: "RSF" = "Rapid Support Forces" |
+| **Entity Resolution** | Cross-document deduplication: "Armed-Group-Beta" = "Rapid Support Forces" |
 | **GraphRAG** | Knowledge graph from relation triples; structural + semantic retrieval |
-| **Temporal Graph** | Time-filtered graph queries: "command structure as of July 1995" |
+| **Temporal Graph** | Time-filtered graph queries: "command structure as of a specific date" |
 | **Multi-hop Agent** | LangGraph ReAct agent for complex temporal/causal questions |
 | **Contradiction Detection** | Surfaces conflicting claims across sources |
 | **Network Analysis** | Betweenness centrality + Louvain community detection on actor graph |
@@ -64,7 +64,7 @@ ollama pull mistral && ollama pull nomic-embed-text
 
 ```bash
 # Ingest a document
-ai4saw ingest file report.pdf --geography Bosnia
+ai4saw ingest file report.pdf --geography conflict-region
 
 # Extract entities, relations, events
 ai4saw extract pipeline
@@ -79,7 +79,7 @@ ai4saw graph build
 ai4saw query ask "What forms of forced labour were documented in Bosnian detention camps?"
 
 # Ask a complex multi-hop question
-ai4saw graph agent "What was the command structure before Srebrenica and who gave the orders?"
+ai4saw graph agent "What was the command structure before Location Alpha and who gave the orders?"
 
 # Check what's available to query
 ai4saw info

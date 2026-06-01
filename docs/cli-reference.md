@@ -27,8 +27,8 @@ Arguments:
 Options:
   --doc-type      report|news|legal|grey_literature  [default: report]
   --language      ISO 639-1 code                     [default: en]
-  --geography     Geographic tag (e.g. Bosnia)
-  --date-published ISO date (e.g. 1995-07-11)
+  --geography     Geographic tag (e.g. conflict-region)
+  --date-published ISO date (e.g. YYYY-MM-DD)
 ```
 
 ### `ingest corpus`
@@ -107,7 +107,7 @@ Arguments:
 
 Options:
   --hops          Graph neighbourhood depth  [default: 2]
-  --at            ISO date for temporal filtering (e.g. 1995-07-11)
+  --at            ISO date for temporal filtering (e.g. YYYY-MM-DD)
   --graph-file    [default: data/knowledge_graph.json]
   --combine-vector  Also run vector search and combine  [default: True]
 ```

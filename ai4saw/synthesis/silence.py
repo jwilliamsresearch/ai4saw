@@ -1,12 +1,12 @@
 """Informational silence detection — two approaches implemented per spec §5.6.
 
 Approach A — Expectation gap:
-  For each known event (CDISaW/ACLED), query the corpus. Events with low
+  For each known event (your-dataset/conflict-events-dataset), query the corpus. Events with low
   retrieval confidence despite high conflict intensity are candidate silences.
 
 Approach B — Density mapping:
   Embed all documents. Cluster by geographic tag and time window.
-  Compare cluster density against ACLED conflict intensity for the same cell.
+  Compare cluster density against conflict-events-dataset conflict intensity for the same cell.
   Sparse clusters in high-intensity zones are structural silences.
 
 This is the novel contribution of AI4SAW: no existing NLP pipeline for
@@ -63,7 +63,7 @@ def detect_silence_expectation_gap(
     Args:
         reference_events: List of dicts with at minimum:
             event_id, location, date, conflict_intensity.
-            These come from CDISaW or ACLED exports.
+            These come from your-dataset or conflict-events-dataset exports.
         intensity_key / location_key / date_key / id_key:
             Column names in the reference_events dicts.
 
@@ -126,7 +126,7 @@ class DensityCell:
     document_count: int
     chunk_count: int
     mean_embedding: list[float]
-    conflict_intensity: float   # from ACLED reference; 0.0 if not available
+    conflict_intensity: float   # from conflict-events-dataset reference; 0.0 if not available
     silence_score: float        # conflict_intensity - normalised doc density
 
 
@@ -134,11 +134,11 @@ def detect_silence_density_map(
     acled_reference: dict[str, float],  # {"{geography}_{time_window}": intensity}
     min_chunks_for_coverage: int = 5,
 ) -> list[DensityCell]:
-    """Approach B: cluster corpus by geography+time, compare against ACLED density.
+    """Approach B: cluster corpus by geography+time, compare against conflict-events-dataset density.
 
     Args:
         acled_reference: Mapping of "location_timewindow" → conflict_intensity.
-            Build this from an ACLED export filtered to your pilot region.
+            Build this from an conflict-events-dataset export filtered to your pilot region.
         min_chunks_for_coverage: Chunk count below which a cell is considered sparse.
 
     Returns:

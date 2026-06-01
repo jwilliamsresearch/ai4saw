@@ -10,25 +10,25 @@ This automates **Phase 1** of the pipeline (corpus preparation) for sources that
 
 ```bash
 # Discover and fetch documents about specific entities
-ai4saw discover fetch "Srebrenica" "Mladic" "Bosnian Serb Army" \
-  --geography Bosnia \
+ai4saw discover fetch "Location Alpha" "Commander Alpha" "Armed Group Alpha" \
+  --geography conflict-region \
   --max-docs 20 \
   --min-relevance 0.5
 
 # Fetch documents for silence candidates (gaps detected by silence detector)
-ai4saw discover fetch "Foča" "Prijedor" \
-  --geography Bosnia \
+ai4saw discover fetch "Location C" "Location D" \
+  --geography conflict-region \
   --silence-mode \
   --max-docs 15
 
 # Preview candidates without downloading anything
-ai4saw discover fetch "El Geneina" "Masalit" \
-  --geography Sudan \
+ai4saw discover fetch "Location Beta" "Group Beta" \
+  --geography conflict-region \
   --dry-run
 
 # Skip review prompt — for scripted/automated runs
-ai4saw discover fetch "RSF" "Darfur" \
-  --geography Sudan \
+ai4saw discover fetch "Armed-Group-Beta" "Province Beta" \
+  --geography conflict-region \
   --yes
 ```
 
@@ -50,7 +50,7 @@ For each successfully ingested document, a row is appended to `corpus/sources.cs
 
 ```csv
 filename,source_url,date_accessed,licence,geography,notes
-sudan_rsf_masalit_abc12345.pdf,https://reliefweb.int/...,2026-06-01,public,Sudan,auto-fetched from reliefweb | Sudan: RSF Attacks on Masalit
+sudan_rsf_masalit_abc12345.pdf,https://reliefweb.int/...,2026-06-01,public,Sudan,auto-fetched from reliefweb | conflict-region: Armed-Group-Beta Attacks on Group Beta
 ```
 
 Licence is inferred automatically: `public` for ReliefWeb, `news` for GDELT.
@@ -72,7 +72,7 @@ Licence is inferred automatically: `public` for ReliefWeb, `news` for GDELT.
 
 ### Deferred sources (need custom scrapers)
 
-- **ICTY/IRMCT** — document database requires session-based scraping
+- **International Tribunal/IRMCT** — document database requires session-based scraping
 - **ICC** — court records available via web but no public API
 - **OHCHR / ReliefWeb** — require registered API keys
 - **HRW reports** — HTML with inconsistent structure
@@ -100,7 +100,7 @@ Already-registered URLs (in `corpus/sources.csv`) are skipped automatically.
 ai4saw export all   # includes silence output
 
 # 2. Fetch targeted documents for the highest-priority silence locations
-ai4saw discover fetch "Nyala" "Zalingei" --geography Sudan --silence-mode --yes
+ai4saw discover fetch "Location F" "Location G" --geography conflict-region --silence-mode --yes
 
 # 3. Re-run extraction on the new chunks
 ai4saw extract pipeline
@@ -117,9 +117,9 @@ Without `--yes`, the command shows a candidate table and asks for confirmation b
 ┌─────────────┬───────────┬──────────────┬──────────────────────────────────────────────────────────┐
 │ Source      │ Relevance │ Date         │ Title                                                    │
 ├─────────────┼───────────┼──────────────┼──────────────────────────────────────────────────────────┤
-│ reliefweb   │ 0.80      │ 2023-05-02   │ Sudan: RSF Attacks on Masalit in El Geneina              │
-│ reliefweb   │ 0.70      │ 2023-06-14   │ Darfur: Humanitarian Situation Update                    │
-│ gdelt       │ 0.55      │ 2023-04-28   │ El Geneina massacre: what we know                        │
+│ reliefweb   │ 0.80      │ 2023-05-02   │ conflict-region: Armed-Group-Beta Attacks on Group Beta in Location Beta              │
+│ reliefweb   │ 0.70      │ 2023-06-14   │ Province Beta: Humanitarian Situation Update                    │
+│ gdelt       │ 0.55      │ 2023-04-28   │ Location Beta massacre: what we know                        │
 └─────────────┴───────────┴──────────────┴──────────────────────────────────────────────────────────┘
 Fetch 3 documents? [y/N]:
 ```

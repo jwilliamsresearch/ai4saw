@@ -19,13 +19,13 @@ The ingestion layer loads source documents, chunks them, and stores them in Chro
 ai4saw ingest file report.pdf \
   --doc-type report \
   --language en \
-  --geography Bosnia \
+  --geography conflict-region \
   --date-published 1996-01-01
 
 # Whole directory (recursive)
 ai4saw ingest corpus ./corpus \
   --doc-type report \
-  --geography Sudan
+  --geography conflict-region
 ```
 
 ## Chunking strategy

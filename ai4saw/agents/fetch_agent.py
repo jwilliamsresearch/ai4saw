@@ -8,7 +8,7 @@ Sources supported in this version:
   - GDELT Project — news article HTML, no authentication required
 
 Sources deferred (need custom scrapers):
-  - ICTY/IRMCT document database
+  - International Tribunal/IRMCT document database
   - ICC court records
   - OHCHR treaty body documents
 

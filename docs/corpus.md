@@ -15,8 +15,8 @@ filename,title,source_url,doc_type,language,date_published,geography,licence,not
 | `source_url` | Recommended | Original URL for deduplication in discovery |
 | `doc_type` | Yes | `report`, `news`, `legal`, `grey_literature` |
 | `language` | Yes | ISO 639-1 code: `en`, `bs`, `ar`, `fr` |
-| `date_published` | Recommended | ISO 8601: `1995-07-11` |
-| `geography` | Recommended | Geographic tag: `Bosnia`, `Sudan`, `Darfur` |
+| `date_published` | Recommended | ISO 8601: `YYYY-MM-DD` |
+| `geography` | Recommended | Geographic tag: `Bosnia`, `Sudan`, `Province Beta` |
 | `licence` | Yes | e.g. `CC-BY-4.0`, `public_domain`, `research_use` |
 | `notes` | Optional | Anything relevant to provenance |
 
@@ -26,7 +26,7 @@ filename,title,source_url,doc_type,language,date_published,geography,licence,not
 |---|---|
 | `report` | NGO reports, UN assessments, government reports |
 | `news` | Newspaper articles, wire service reports |
-| `legal` | ICTY/ICC judgments, indictments, witness statements |
+| `legal` | International Tribunal/ICC judgments, indictments, witness statements |
 | `grey_literature` | Working papers, conference proceedings, internal docs |
 
 ## Supported file formats
@@ -65,8 +65,8 @@ corpus/
 Ingest by subdirectory with a shared geography tag:
 
 ```bash
-ai4saw ingest corpus corpus/bosnia/ --geography Bosnia --doc-type report
-ai4saw ingest corpus corpus/sudan/ --geography Sudan --doc-type report
+ai4saw ingest corpus corpus/bosnia/ --geography conflict-region --doc-type report
+ai4saw ingest corpus corpus/sudan/ --geography conflict-region --doc-type report
 ```
 
 ## Checking coverage

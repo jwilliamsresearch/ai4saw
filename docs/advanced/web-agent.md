@@ -34,19 +34,19 @@ The corpus grows continuously as the agent works through its backlog. Between di
 
 ```bash
 # First run: discover and build the frontier
-ai4saw discover web "Srebrenica" "Mladic" "VRS" "Bosnia" \
-  --geography Bosnia --yes
+ai4saw discover web "Location Alpha" "Commander Alpha" "Armed-Group-Alpha" "conflict-region" \
+  --geography conflict-region --yes
 
 # Run overnight, re-querying every hour (4 × 15 min sessions)
-ai4saw discover web "Srebrenica" "Mladic" "VRS" "Bosnia" \
-  --geography Bosnia --loop --interval 900 --yes
+ai4saw discover web "Location Alpha" "Commander Alpha" "Armed-Group-Alpha" "conflict-region" \
+  --geography conflict-region --loop --interval 900 --yes
 
-# Sudan corpus
-ai4saw discover web "El Geneina" "Masalit" "RSF" "Darfur" \
-  --geography Sudan --loop --interval 900 --yes
+# conflict-region corpus
+ai4saw discover web "Location Beta" "Group Beta" "Armed-Group-Beta" "Province Beta" \
+  --geography conflict-region --loop --interval 900 --yes
 
 # Check what the agent has learned
-ai4saw discover web "Srebrenica" --geography Bosnia --state
+ai4saw discover web "Location Alpha" --geography conflict-region --state
 ```
 
 ## How it works
@@ -83,7 +83,7 @@ DuckDuckGo templates are run in order of historical yield (new docs per run):
 |---|---|
 | `pdf_report` | `"{entity}" filetype:pdf human rights report` |
 | `hrw_amnesty` | `"{entity}" site:hrw.org OR site:amnesty.org OR site:ohchr.org` |
-| `icty_icc` | `"{entity}" site:icty.org OR site:irmct.org OR site:icc-cpi.int` |
+| `icty_icc` | `"{entity}" site:tribunal.int OR site:tribunal.int OR site:court.int` |
 | `un_reliefweb` | `"{entity}" site:un.org OR site:reliefweb.int` |
 | `tribunal_crime` | `"{entity}" war crime genocide slavery tribunal court` |
 
@@ -104,7 +104,7 @@ All sources are **free with no API keys required**.
 
 URLs from these domains receive a priority boost and are followed even without an explicit entity match:
 
-`hrw.org` · `amnesty.org` · `ohchr.org` · `icty.org` · `irmct.org` · `icc-cpi.int` · `un.org` · `reliefweb.int` · `unhcr.org` · `ocha.org` · `crisisgroup.org` · `prio.org` · `ssrn.com` · `jstor.org` · `cambridge.org` · `archive.org` · `acleddata.com` · `globalr2p.org`
+`hrw.org` · `amnesty.org` · `ohchr.org` · `tribunal.int` · `tribunal.int` · `court.int` · `un.org` · `reliefweb.int` · `unhcr.org` · `ocha.org` · `crisisgroup.org` · `prio.org` · `ssrn.com` · `jstor.org` · `cambridge.org` · `archive.org` · `acleddata.com` · `globalr2p.org`
 
 ## Options
 
@@ -149,7 +149,7 @@ CrossRef   (open-access papers)
 ## State summary output
 
 ```
-ai4saw discover web "Srebrenica" --geography Bosnia --state
+ai4saw discover web "Location Alpha" --geography conflict-region --state
 ```
 
 ```
@@ -166,7 +166,7 @@ Top domains by hit rate
  Domain            Score   Hits  Attempts
  hrw.org           0.82      14        17
  archive.org       0.71      22        31
- icty.org          0.67       8        12
+ tribunal.int          0.67       8        12
 
 Top query templates by yield
  Template key      Yield/run   Runs
@@ -179,19 +179,19 @@ Top query templates by yield
 
 ```bash
 # 1. Bootstrap: one-shot discovery run to build the initial frontier
-ai4saw discover web "Srebrenica" "Mladic" "VRS" "Bosnia" \
-  --geography Bosnia --yes
+ai4saw discover web "Location Alpha" "Commander Alpha" "Armed-Group-Alpha" "conflict-region" \
+  --geography conflict-region --yes
 
 # 2. Let it run overnight (96 sessions at 15-min intervals)
-ai4saw discover web "Srebrenica" "Mladic" "VRS" "Bosnia" \
-  --geography Bosnia --loop --interval 900 --yes
+ai4saw discover web "Location Alpha" "Commander Alpha" "Armed-Group-Alpha" "conflict-region" \
+  --geography conflict-region --loop --interval 900 --yes
 
 # 3. After extraction + graph build, add silence candidates
-ai4saw discover web "Foča" "Prijedor" "Brčko" \
-  --geography Bosnia --loop --interval 900 --yes
+ai4saw discover web "Location C" "Location D" "Location E" \
+  --geography conflict-region --loop --interval 900 --yes
 
 # 4. Check progress at any time (safe to run while --loop is running in another terminal)
-ai4saw discover web "Srebrenica" --geography Bosnia --state
+ai4saw discover web "Location Alpha" --geography conflict-region --state
 ```
 
 ## Combining with silence detection
@@ -201,8 +201,8 @@ The highest-value use is targeting locations identified by the silence detector:
 ```bash
 # After graph build, silence detection tells you where gaps are
 # Feed those locations directly to the web agent
-ai4saw discover web "Foča" "Priboj" "Višegrad" \
-  --geography Bosnia --loop --yes
+ai4saw discover web "Location C" "Location H" "Location I" \
+  --geography conflict-region --loop --yes
 ```
 
 These are the locations where corpus gaps are largest and new evidence has the highest research value.

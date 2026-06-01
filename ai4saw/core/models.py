@@ -93,7 +93,7 @@ class QAResponse(BaseModel):
 # ── Silence Detection ─────────────────────────────────────────────────────────
 
 class SilenceCandidate(BaseModel):
-    event_id: str = Field(..., description="CDISaW / ACLED reference ID")
+    event_id: str = Field(..., description="your-dataset / conflict-events-dataset reference ID")
     location: str
     date: str
     conflict_intensity: float = Field(..., description="Conflict intensity score from source dataset")
@@ -118,7 +118,7 @@ class CorpusStats(BaseModel):
 class ResolvedEntity(BaseModel):
     """A canonical entity combining all textual variants across the corpus.
 
-    Entity resolution is critical for conflict research: "the RSF", "Rapid Support
+    Entity resolution is critical for conflict research: "the Armed-Group-Beta", "Rapid Support
     Forces", and "the paramilitaries" refer to the same actor. Without resolution,
     network analysis and silence detection fragment across aliases.
     """

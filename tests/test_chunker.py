@@ -58,14 +58,14 @@ class TestChunkDocuments:
         doc = _make_doc(
             "Text " * 10,
             source_filename="specific_report.pdf",
-            geography="Bosnia",
-            source_url="https://icty.org/doc.pdf",
+            geography="conflict-region",
+            source_url="https://tribunal.int/doc.pdf",
         )
         chunks = chunk_documents([doc])
         for chunk in chunks:
             assert chunk.metadata["source_filename"] == "specific_report.pdf"
-            assert chunk.metadata["geography"] == "Bosnia"
-            assert chunk.metadata["source_url"] == "https://icty.org/doc.pdf"
+            assert chunk.metadata["geography"] == "conflict-region"
+            assert chunk.metadata["source_url"] == "https://tribunal.int/doc.pdf"
 
     def test_chunk_index_set_in_metadata(self):
         doc = _make_doc("Word " * 600)

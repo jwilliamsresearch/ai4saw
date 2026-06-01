@@ -77,8 +77,8 @@ class TestDiscoverWebState:
         monkeypatch.setattr(web_agent, "STATE_FILE", tmp_path / "fresh.json")
 
         result = runner.invoke(app, [
-            "discover", "web", "Srebrenica",
-            "--geography", "Bosnia",
+            "discover", "web", "Location Alpha",
+            "--geography", "conflict-region",
             "--state",
         ])
         assert result.exit_code == 0
@@ -93,8 +93,8 @@ class TestDiscoverAgentState:
         monkeypatch.setattr(agent_discover, "AGENT_STATE_FILE", tmp_path / "fresh.json")
 
         result = runner.invoke(app, [
-            "discover", "agent", "Srebrenica",
-            "--geography", "Bosnia",
+            "discover", "agent", "Location Alpha",
+            "--geography", "conflict-region",
             "--state",
         ])
         assert result.exit_code == 0
@@ -105,8 +105,8 @@ class TestDiscoverAgentState:
         monkeypatch.setattr(agent_discover, "AGENT_LOG_FILE", tmp_path / "nonexistent.jsonl")
 
         result = runner.invoke(app, [
-            "discover", "agent", "Srebrenica",
-            "--geography", "Bosnia",
+            "discover", "agent", "Location Alpha",
+            "--geography", "conflict-region",
             "--log", "5",
         ])
         assert result.exit_code == 0
@@ -123,8 +123,8 @@ class TestDiscoverFetchDryRun:
 
         with patch("ai4saw.agents.fetch_agent.fetch_corpus", return_value=mock_result):
             result = runner.invoke(app, [
-                "discover", "fetch", "Srebrenica", "Mladic",
-                "--geography", "Bosnia",
+                "discover", "fetch", "Location Alpha", "Commander Alpha",
+                "--geography", "conflict-region",
                 "--dry-run",
             ])
 
@@ -133,7 +133,7 @@ class TestDiscoverFetchDryRun:
 
     def test_missing_geography_fails(self):
         result = runner.invoke(app, [
-            "discover", "fetch", "Srebrenica",
+            "discover", "fetch", "Location Alpha",
             # --geography is required
         ])
         assert result.exit_code != 0

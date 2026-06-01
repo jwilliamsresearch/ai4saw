@@ -1,4 +1,4 @@
-# Evaluation
+﻿# Evaluation
 
 AI4SAW has three evaluation tracks: NER benchmark, RAG quality (RAGAS), and LLM-as-Judge automated scoring.
 
@@ -18,8 +18,8 @@ Gold standard format (`eval/testdata/ner_gold.json`):
     "chunk_id": "gold_001",
     "chunk_text": "...",
     "entities": [
-      {"text": "ICTY", "label": "ORG"},
-      {"text": "Ratko Mladić", "label": "PERSON"}
+      {"text": "International Tribunal", "label": "ORG"},
+      {"text": "Commander Alpha", "label": "PERSON"}
     ]
   }
 ]
@@ -27,7 +27,7 @@ Gold standard format (`eval/testdata/ner_gold.json`):
 
 Output: `eval/results/ner_benchmark.json`
 
-**Expanding the gold set:** The current gold set has 5 hand-labelled chunks. For publishable benchmarks, label 200 chunks spanning both Bosnia and Sudan domains. The evaluation script handles any number of gold chunks.
+**Expanding the gold set:** The current gold set has 5 hand-labelled chunks. For publishable benchmarks, label 200 chunks spanning both conflict-region and conflict-region domains. The evaluation script handles any number of gold chunks.
 
 ## RAG Evaluation (RAGAS)
 

@@ -60,7 +60,7 @@ FRONTIER_MAX      = 5_000  # cap frontier size to avoid unbounded growth
 _DDG_TEMPLATES: list[tuple[str, str]] = [
     ("pdf_report",     '"{entity}" filetype:pdf human rights report'),
     ("hrw_amnesty",    '"{entity}" site:hrw.org OR site:amnesty.org OR site:ohchr.org'),
-    ("icty_icc",       '"{entity}" site:icty.org OR site:irmct.org OR site:icc-cpi.int'),
+    ("icty_icc",       '"{entity}" site:tribunal.int OR site:tribunal.int OR site:court.int'),
     ("un_reliefweb",   '"{entity}" site:un.org OR site:reliefweb.int'),
     ("tribunal_crime", '"{entity}" war crime genocide slavery tribunal court'),
 ]
@@ -68,7 +68,7 @@ _DDG_TEMPLATES: list[tuple[str, str]] = [
 # Domains that reliably host high-quality documents
 TRUSTED_DOMAINS = frozenset({
     "hrw.org", "amnesty.org", "ohchr.org",
-    "icty.org", "irmct.org", "icc-cpi.int",
+    "tribunal.int", "tribunal.int", "court.int",
     "un.org", "reliefweb.int", "unhcr.org", "ocha.org",
     "crisisgroup.org", "prio.org", "ssrn.com",
     "jstor.org", "cambridge.org", "oxfordjournals.org",

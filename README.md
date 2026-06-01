@@ -1,4 +1,4 @@
-# AI4SAW — AI for Slavery and War
+﻿# AI4SAW — AI for Slavery and War
 
 **Open intelligence extraction pipeline for conflict-related slavery research.**
 
@@ -9,9 +9,8 @@ Research Fellow in Slavery and War | James.williams4@nottingham.ac.uk
 
 ## What this is
 
-AI4SAW automates intelligence extraction from unstructured conflict and human rights corpora — NGO reports, legal filings, news archives, UN documents, grey literature. It is modular, model-agnostic, and designed to feed structured datasets including CDISaW and ACLED.
+AI4SAW automates intelligence extraction from unstructured conflict and human rights corpora — NGO reports, legal filings, news archives, UN documents, grey literature. It is modular, model-agnostic, and designed to feed structured datasets.
 
-**Primary pilot domains:** conflict-related slavery in Bosnia and Sudan.
 
 ### Core pipeline
 1. **Ingestion** — PDF, HTML, DOCX, plaintext → chunked + embedded → ChromaDB
@@ -21,7 +20,7 @@ AI4SAW automates intelligence extraction from unstructured conflict and human ri
 
 ### Advanced features
 5. **Entity Resolution** — cross-document entity deduplication using embedding similarity + string matching
-6. **GraphRAG + Temporal Graph** — knowledge graph from relation triples with time-filtered queries (`--at 1995-07-11`)
+6. **GraphRAG + Temporal Graph** — knowledge graph from relation triples with time-filtered queries (`--at YYYY-MM-DD`)
 7. **Contradiction Detection** — surfaces conflicting claims across sources for researcher review
 8. **Multi-hop Agent** — LangGraph ReAct agent that chains tool calls for complex temporal/causal questions
 9. **Active Corpus Discovery** — queries ReliefWeb and GDELT to find documents not yet in the corpus
@@ -81,10 +80,10 @@ ingest → extract pipeline → extract resolve → graph build
 
 ```bash
 # Single document
-ai4saw ingest file report.pdf --doc-type report --geography Bosnia --date-published 1996-01-01
+ai4saw ingest file report.pdf --doc-type report --geography conflict-region --date-published 1996-01-01
 
 # Whole directory
-ai4saw ingest corpus ./corpus --geography Sudan
+ai4saw ingest corpus ./corpus --geography conflict-region
 ```
 
 ### Step 2 — Extract
@@ -93,7 +92,7 @@ ai4saw ingest corpus ./corpus --geography Sudan
 # NER + relations + events on all indexed chunks
 ai4saw extract pipeline
 
-# Resolve entity aliases across the corpus ("RSF" = "Rapid Support Forces")
+# Resolve entity aliases across the corpus ("Armed-Group-Beta" = "Rapid Support Forces")
 # Required before graph build and network analysis
 ai4saw extract resolve
 ```
@@ -113,10 +112,10 @@ Reads `output/relation_results.json` and `data/entity_registry.json` → writes 
 ai4saw query ask "What forms of forced labour were documented in Bosnian camps?"
 
 # GraphRAG — structural + semantic
-ai4saw graph query "What did the RSF do in El Geneina in 2023?"
+ai4saw graph query "What did the Armed-Group-Beta do in Location Beta in 2023?"
 
 # Multi-hop agent — complex temporal/causal questions
-ai4saw graph agent "What happened in the six months before Srebrenica and who were the key actors?"
+ai4saw graph agent "What happened in the six months before Location Alpha and who were the key actors?"
 ```
 
 ### Step 5 — Analyze
@@ -133,19 +132,19 @@ ai4saw analyze network --gexf
 
 ```bash
 # Passive discovery: find candidates for manual review
-ai4saw discover run "El Geneina" "Masalit" "Rapid Support Forces"
+ai4saw discover run "Location Beta" "Group Beta" "Rapid Support Forces"
 
 # Auto-discover from entity registry
 ai4saw discover run --from-registry --label LOCATION --top-n 10
 
 # Active fetch: discover + download + register + ingest in one command
-ai4saw discover fetch "El Geneina" "Masalit" --geography Sudan --max-docs 20
+ai4saw discover fetch "Location Beta" "Group Beta" --geography conflict-region --max-docs 20
 
 # Preview candidates without downloading
-ai4saw discover fetch "Srebrenica" "Mladic" --geography Bosnia --dry-run
+ai4saw discover fetch "Location Alpha" "Commander Alpha" --geography conflict-region --dry-run
 
 # Silence-driven fetch (targets coverage gaps detected by silence detector)
-ai4saw discover fetch "Foča" "Prijedor" --geography Bosnia --silence-mode --yes
+ai4saw discover fetch "Location C" "Location D" --geography conflict-region --silence-mode --yes
 ```
 
 ### Step 7 — Export
@@ -229,7 +228,7 @@ corpus/          → ingest          → ChromaDB (vector store)
 
 ### Entity Resolution (`ai4saw extract resolve`)
 
-Merges aliases across the corpus into canonical entities. "The RSF", "Rapid Support Forces", and "the Khartoum paramilitaries" become one node with aliases tracked.
+Merges aliases across the corpus into canonical entities. "The Armed-Group-Beta", "Rapid Support Forces", and "the Khartoum paramilitaries" become one node with aliases tracked.
 
 **Algorithm:** batch embeddings → cosine similarity matrix → union-find clustering (cosine ≥ 0.88 OR fuzzy string ratio ≥ 72). Conservative defaults; tune with `--cosine-threshold` and `--fuzzy-threshold`.
 
@@ -429,14 +428,14 @@ The `query_knowledge_graph` tool accepts an `at_date` parameter, enabling tempor
 Every edge in the knowledge graph carries `valid_from` and `valid_to` fields (ISO 8601). This enables time-filtered graph queries:
 
 ```bash
-# Command structure as of 11 July 1995
-ai4saw graph query "Drina Corps command" --at 1995-07-11
+# Command structure as of 11 a specific date
+ai4saw graph query "Drina Corps command" --at YYYY-MM-DD
 
-# RSF operations before April 2023
-ai4saw graph query "RSF El Geneina" --at 2023-04-14
+# Armed-Group-Beta operations before April 2023
+ai4saw graph query "Armed-Group-Beta Location Beta" --at 2023-04-14
 ```
 
-Edges where `valid_from > DATE` or `valid_to < DATE` are excluded. Edges with no date information are always included (assumed continuously valid). This enables questions like *"what was the command structure before Srebrenica?"* without rebuilding the graph.
+Edges where `valid_from > DATE` or `valid_to < DATE` are excluded. Edges with no date information are always included (assumed continuously valid). This enables questions like *"what was the command structure before Location Alpha?"* without rebuilding the graph.
 
 ---
 
@@ -473,7 +472,7 @@ Output: `eval/results/judge_report.json` with per-chunk scores, aggregate means,
 
 - **Geocoding** — LOCATION entities → lat/lon for GeoJSON. Options: Nominatim, GeoNames, few-shot LLM geocoder. See `ai4saw/synthesis/geocoder.py`.
 - **Language** — Bosnian/Arabic sources require multilingual models or translation pre-processing.
-- **CDISaW write-back** — schema alignment work deferred to post-v0.1.
+- **your-dataset write-back** — schema alignment work deferred to post-v0.1.
 
 ---
 

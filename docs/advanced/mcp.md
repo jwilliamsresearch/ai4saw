@@ -4,7 +4,7 @@ The MCP (Model Context Protocol) server exposes AI4SAW as a tool that Claude Des
 
 A researcher can open Claude Desktop and ask:
 
-> *"What happened in El Geneina in April 2023?"*
+> *"What happened in Location Beta in April 2023?"*
 
 Claude will call `search_corpus` and `query_knowledge_graph`, then synthesise a cited answer grounded in your indexed documents — without the researcher needing to know any CLI commands.
 
@@ -66,9 +66,9 @@ uv run ai4saw-mcp
 
 The `query_knowledge_graph` tool accepts an `at_date` parameter:
 
-> *"Show me the command structure in Bosnia as of July 1995"*
+> *"Show me the command structure in conflict-region as of a specific date"*
 
-Claude will call `query_knowledge_graph(entity_name="Bosnia command", at_date="1995-07-11")` and return only relations valid on that date.
+Claude will call `query_knowledge_graph(entity_name="Bosnia command", at_date="YYYY-MM-DD")` and return only relations valid on that date.
 
 ## Server instructions
 

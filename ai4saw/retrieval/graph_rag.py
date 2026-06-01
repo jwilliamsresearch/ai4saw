@@ -213,7 +213,7 @@ def _render_subgraph_as_text(
     Args:
         at_date: ISO 8601 date string. When set, only edges valid on that date
             are included — enabling "what did the command structure look like
-            in July 1995?" queries over the temporal graph.
+            in a specific date?" queries over the temporal graph.
     """
     visited: set[str] = set()
     frontier = set(seed_node_ids)
@@ -292,9 +292,9 @@ def graph_context_for_query(
     multi-hop agent (as a dedicated graph_query tool).
 
     Args:
-        at_date: ISO 8601 date (e.g. "1995-07-11"). When provided, only edges
+        at_date: ISO 8601 date (e.g. "YYYY-MM-DD"). When provided, only edges
             valid on that date are included. Enables temporal queries like
-            "what was the command structure before Srebrenica?"
+            "what was the command structure before Location Alpha?"
 
     Returns an empty string if the graph file doesn't exist — callers degrade
     gracefully to vector-only retrieval.

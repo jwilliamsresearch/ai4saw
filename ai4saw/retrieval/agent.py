@@ -6,7 +6,7 @@ Why multi-hop over single-shot RAG:
   queries the knowledge graph → synthesises across all context.
 
 This handles questions that require chaining across documents and time:
-  "What happened in the six months before the Foča massacres and who were
+  "What happened in the six months before the Location C massacres and who were
    the key actors in the buildup?"
   → requires temporal chaining, actor tracking, and event sequencing across
     many documents — single-shot retrieval cannot do this reliably.

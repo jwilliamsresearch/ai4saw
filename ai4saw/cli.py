@@ -1,4 +1,4 @@
-"""AI4SAW — command-line entry point.
+﻿"""AI4SAW — command-line entry point.
 
 All commands are type-annotated and auto-documented via Typer.
 Run `ai4saw --help` for the full command reference.
@@ -64,7 +64,7 @@ def ingest_file(
     doc_type: str = typer.Option("report", help="report|news|legal|grey_literature"),
     language: str = typer.Option("en", help="ISO 639-1 language code"),
     geography: Optional[str] = typer.Option(None, help="Geographic tag"),
-    date_published: Optional[str] = typer.Option(None, help="ISO date, e.g. 1995-07-11"),
+    date_published: Optional[str] = typer.Option(None, help="ISO date, e.g. YYYY-MM-DD"),
 ) -> None:
     """Load a single document, chunk it, and store in ChromaDB."""
     from ai4saw.ingestion.chunker import chunk_documents
@@ -186,7 +186,7 @@ def run_entity_resolution(
 ) -> None:
     """Resolve NER entities across the corpus into a canonical registry.
 
-    Merges aliases ("RSF", "Rapid Support Forces", "the paramilitaries") into
+    Merges aliases ("Armed-Group-Beta", "Rapid Support Forces", "the paramilitaries") into
     single canonical entities using embedding similarity + string matching.
     Required before building the knowledge graph.
     """
@@ -252,7 +252,7 @@ def graph_query(
     question: str = typer.Argument(..., help="Question or entity name to query"),
     hops: int = typer.Option(2, help="Graph neighbourhood depth"),
     at: Optional[str] = typer.Option(
-        None, "--at", help="ISO date for temporal filtering, e.g. 1995-07-11"
+        None, "--at", help="ISO date for temporal filtering, e.g. YYYY-MM-DD"
     ),
     graph_file: Path = typer.Option(Path("data/knowledge_graph.json")),
     combine_vector: bool = typer.Option(True, help="Also run vector search and combine"),
@@ -263,7 +263,7 @@ def graph_query(
     from the graph, and combines with vector search results.
 
     Use --at to filter the graph to a specific point in time:
-      ai4saw graph query "Drina Corps command" --at 1995-07-11
+      ai4saw graph query "Drina Corps command" --at YYYY-MM-DD
     """
     from ai4saw.retrieval.graph_rag import graph_context_for_query, load_knowledge_graph
 
@@ -509,7 +509,7 @@ def analyze_network(
 @discover_app.command("run")
 def discover_run(
     entities: Optional[list[str]] = typer.Argument(
-        None, help="Entity names to search for (e.g. 'El Geneina' 'Rapid Support Forces')"
+        None, help="Entity names to search for (e.g. 'Location Beta' 'Rapid Support Forces')"
     ),
     from_registry: bool = typer.Option(
         False, "--from-registry", help="Use top entities from the entity registry"
@@ -527,7 +527,7 @@ def discover_run(
     corpus/sources.csv. Review the output before ingesting any document.
 
     Examples:
-      ai4saw discover run "El Geneina" "Masalit" "RSF"
+      ai4saw discover run "Location Beta" "Group Beta" "Armed-Group-Beta"
       ai4saw discover run --from-registry --label LOCATION --top-n 5
     """
     from ai4saw.discovery.discovery import (
@@ -598,7 +598,7 @@ def discover_run(
 @discover_app.command("fetch")
 def discover_fetch(
     entities: list[str] = typer.Argument(
-        ..., help="Entity names to search for (e.g. 'Srebrenica' 'VRS' 'Mladic')"
+        ..., help="Entity names to search for (e.g. 'Location Alpha' 'Armed-Group-Alpha' 'Commander Alpha')"
     ),
     geography: str = typer.Option(..., help="Geography tag for chunk metadata and sources.csv"),
     max_docs: int = typer.Option(100, help="Hard cap on documents to ingest in one run"),
@@ -618,11 +618,11 @@ def discover_fetch(
 
     Examples:
 
-      ai4saw discover fetch "Srebrenica" "Mladic" --geography Bosnia --max-docs 20
+      ai4saw discover fetch "Location Alpha" "Commander Alpha" --geography conflict-region --max-docs 20
 
-      ai4saw discover fetch "El Geneina" "Masalit" --geography Sudan --dry-run
+      ai4saw discover fetch "Location Beta" "Group Beta" --geography conflict-region --dry-run
 
-      ai4saw discover fetch "Foča" "Prijedor" --geography Bosnia --silence-mode --yes
+      ai4saw discover fetch "Location C" "Location D" --geography conflict-region --silence-mode --yes
     """
     from ai4saw.agents.fetch_agent import fetch_corpus
 
@@ -717,7 +717,7 @@ def discover_fetch(
 @discover_app.command("web")
 def discover_web(
     entities: list[str] = typer.Argument(
-        ..., help="Entity names to search for (e.g. 'Srebrenica' 'Mladic')"
+        ..., help="Entity names to search for (e.g. 'Location Alpha' 'Commander Alpha')"
     ),
     geography: str = typer.Option(..., help="Geography tag for chunk metadata and sources.csv"),
     min_relevance: float = typer.Option(0.4, help="Minimum relevance score (0–1)"),
@@ -748,13 +748,13 @@ def discover_web(
     Examples:
 
       # First run: discover and start building frontier
-      ai4saw discover web "Srebrenica" "Mladic" "VRS" "Bosnia" --geography Bosnia --yes
+      ai4saw discover web "Location Alpha" "Commander Alpha" "Armed-Group-Alpha" "conflict-region" --geography conflict-region --yes
 
       # Let it run overnight, re-querying every hour
-      ai4saw discover web "Srebrenica" "Mladic" --geography Bosnia --loop --interval 900 --yes
+      ai4saw discover web "Location Alpha" "Commander Alpha" --geography conflict-region --loop --interval 900 --yes
 
       # Check what the agent knows
-      ai4saw discover web "Srebrenica" --geography Bosnia --state
+      ai4saw discover web "Location Alpha" --geography conflict-region --state
     """
     from ai4saw.agents.web_agent import (
         web_discover, drain_frontier, load_state, save_state,
@@ -868,7 +868,7 @@ def discover_web(
 @discover_app.command("agent")
 def discover_agent(
     entities: list[str] = typer.Argument(
-        ..., help="Seed entity names (e.g. 'Srebrenica' 'Mladic')"
+        ..., help="Seed entity names (e.g. 'Location Alpha' 'Commander Alpha')"
     ),
     geography: str = typer.Option(..., help="Geography tag for chunk metadata and sources.csv"),
     min_relevance: float = typer.Option(0.4, help="Minimum frontier priority to ingest"),
@@ -888,11 +888,11 @@ def discover_agent(
     based on what it found.  Those queries feed the next session's frontier.
 
     Example snowball:
-      Seed: "Srebrenica"  →  finds ICTY Krstić judgment
-      LLM reads it  →  extracts "Dražen Erdemović", "10th Sabotage Detachment"
+      Seed: "Location Alpha"  →  finds International Tribunal Commander Beta judgment
+      LLM reads it  →  extracts "Witness Alpha", "Unit Alpha"
       LLM generates:
-        "Dražen Erdemović plea agreement ICTY 1996"
-        "10th Sabotage Detachment VRS Branjevo Farm executions"
+        "Witness Alpha plea agreement International Tribunal 1996"
+        "Unit Alpha Armed-Group-Alpha Site Alpha executions"
       →  3 queries no template would have produced
 
     State:  output/agent_discover_state.json
@@ -900,13 +900,13 @@ def discover_agent(
 
     Examples:
 
-      ai4saw discover agent "Srebrenica" "Mladic" --geography Bosnia --yes
+      ai4saw discover agent "Location Alpha" "Commander Alpha" --geography conflict-region --yes
 
-      ai4saw discover agent "El Geneina" "Masalit" "RSF" --geography Sudan --loop --yes
+      ai4saw discover agent "Location Beta" "Group Beta" "Armed-Group-Beta" --geography conflict-region --loop --yes
 
-      ai4saw discover agent "Srebrenica" --geography Bosnia --state
+      ai4saw discover agent "Location Alpha" --geography conflict-region --state
 
-      ai4saw discover agent "Srebrenica" --geography Bosnia --log 5
+      ai4saw discover agent "Location Alpha" --geography conflict-region --log 5
     """
     from ai4saw.agents.agent_discover import (
         load_agent_state, save_agent_state, run_agent_session,

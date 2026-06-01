@@ -10,7 +10,7 @@ AI4SAW operationalises silence as a measurable quantity. No existing NLP pipelin
 
 ### Approach A — Expectation Gap
 
-For each known event in CDISaW or ACLED, query the corpus. Measure how well the corpus covers that event using the mean similarity score of the top-3 retrieved chunks.
+For each known event in your-dataset or conflict-events-dataset, query the corpus. Measure how well the corpus covers that event using the mean similarity score of the top-3 retrieved chunks.
 
 ```
 silence_score = conflict_intensity - retrieval_confidence
@@ -20,8 +20,8 @@ High intensity + low retrieval confidence = candidate silence.
 
 ```python
 reference_events = [
-    {"event_id": "CDISaW-001", "location": "Foča", "date": "1992-08-01", "conflict_intensity": 0.88},
-    {"event_id": "ACLED-1042", "location": "Prijedor", "date": "1992-05-30", "conflict_intensity": 0.82},
+    {"event_id": "your-dataset-001", "location": "Location C", "date": "1992-08-01", "conflict_intensity": 0.88},
+    {"event_id": "conflict-events-dataset-1042", "location": "Location D", "date": "1992-05-30", "conflict_intensity": 0.82},
 ]
 
 from ai4saw.synthesis.silence import detect_silence_expectation_gap
@@ -30,7 +30,7 @@ candidates = detect_silence_expectation_gap(reference_events)
 
 ### Approach B — Density Mapping
 
-Embed all documents. Cluster by geographic tag and time window (year-quarter). Compare cluster density against ACLED conflict intensity for the same cell. Sparse clusters in high-intensity zones are structural silences.
+Embed all documents. Cluster by geographic tag and time window (year-quarter). Compare cluster density against conflict-events-dataset conflict intensity for the same cell. Sparse clusters in high-intensity zones are structural silences.
 
 ```python
 acled_reference = {
@@ -48,8 +48,8 @@ density_cells = detect_silence_density_map(acled_reference)
 ```json title="output/silences.json"
 [
   {
-    "event_id": "CDISaW-001",
-    "location": "Foča",
+    "event_id": "your-dataset-001",
+    "location": "Location C",
     "date": "1992-08-01",
     "conflict_intensity": 0.88,
     "retrieval_confidence": 0.12,
@@ -64,11 +64,11 @@ density_cells = detect_silence_density_map(acled_reference)
 Once silence candidates are identified, feed them to corpus discovery:
 
 ```bash
-ai4saw discover run "Foča" "Prijedor" "Brčko"
+ai4saw discover run "Location C" "Location D" "Location E"
 ```
 
 This directly targets the documented gap with external API search.
 
 ## Validation
 
-Silence candidates should be validated against researcher domain knowledge before publication. The pipeline provides ranked candidates and evidence; the researcher provides interpretation. Cross-reference against known documentation gaps in CDISaW or ACLED.
+Silence candidates should be validated against researcher domain knowledge before publication. The pipeline provides ranked candidates and evidence; the researcher provides interpretation. Cross-reference against known documentation gaps in your-dataset or conflict-events-dataset.

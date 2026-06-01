@@ -9,7 +9,7 @@ Gold standard format (ner_gold.json):
       "chunk_id": "abc123",
       "chunk_text": "...",
       "entities": [
-        {"text": "ICTY", "label": "ORG"},
+        {"text": "International Tribunal", "label": "ORG"},
         ...
       ]
     }

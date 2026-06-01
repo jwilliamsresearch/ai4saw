@@ -1,7 +1,7 @@
 """Dataset export layer — produces flat, interoperable JSON/GeoJSON outputs.
 
-All outputs are designed to be ingested directly into CDISaW, ACLED
-supplementary datasets, or a PostGIS database. No proprietary formats.
+All outputs are designed to be ingested directly into your-dataset, conflict-events-dataset
+supplementary datasets, or a your-GIS-system database. No proprietary formats.
 
 Output files (per spec §5.7):
   events.geojson   — classified events with geometry from LOCATION entities

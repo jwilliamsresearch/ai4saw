@@ -1,4 +1,4 @@
-# Agentic Discovery
+﻿# Agentic Discovery
 
 ## What makes it genuinely agentic
 
@@ -16,40 +16,40 @@ This is the difference between the three discovery commands:
 
 ```mermaid
 graph TD
-    S["Seed: **Srebrenica**"]
-    S -->|DDG search| K["ICTY Krstić judgment"]
-    K -->|LLM reads| E1["Dražen Erdemović"]
-    K -->|LLM reads| E2["10th Sabotage Detachment"]
-    K -->|LLM reads| E3["Branjevo Farm"]
-    E1 -->|generated query| P["Erdemović plea transcript\nICTY 1996"]
-    E2 -->|generated query| B["Branjevo Farm\nexecution records"]
-    P -->|LLM reads| F1["Zoran Vuković"]
-    P -->|LLM reads| F2["Pilica Cultural Centre"]
-    B -->|LLM reads| F3["Dragan Nikolić"]
+    S["Seed: **Location Alpha**"]
+    S -->|DDG search| K["International Tribunal Commander Beta judgment"]
+    K -->|LLM reads| E1["Witness Alpha"]
+    K -->|LLM reads| E2["Unit Alpha"]
+    K -->|LLM reads| E3["Site Alpha"]
+    E1 -->|generated query| P["Witness Alpha plea transcript\nInternational Tribunal 1996"]
+    E2 -->|generated query| B["Site Alpha\nexecution records"]
+    P -->|LLM reads| F1["Witness Beta"]
+    P -->|LLM reads| F2["Site Beta"]
+    B -->|LLM reads| F3["Commander Gamma"]
 ```
 
-Each document the agent ingests expands the entity graph and generates 2–3 new directions. No template would have produced `"Erdemović plea agreement ICTY 1996"` — it came from reading the Krstić judgment. The corpus builds itself from evidence.
+Each document the agent ingests expands the entity graph and generates 2–3 new directions. No template would have produced `"Witness Alpha plea agreement International Tribunal 1996"` — it came from reading the Commander Beta judgment. The corpus builds itself from evidence.
 
 ## Quick start
 
 ```bash
 # First run — discovers and starts reasoning
-ai4saw discover agent "Srebrenica" "Mladic" "VRS" \
-  --geography Bosnia --yes
+ai4saw discover agent "Location Alpha" "Commander Alpha" "Armed-Group-Alpha" \
+  --geography conflict-region --yes
 
 # Run overnight — 20-minute sessions, LLM reasoning every session
-ai4saw discover agent "Srebrenica" "Mladic" "VRS" \
-  --geography Bosnia --loop --interval 1200 --yes
+ai4saw discover agent "Location Alpha" "Commander Alpha" "Armed-Group-Alpha" \
+  --geography conflict-region --loop --interval 1200 --yes
 
-# Sudan corpus
-ai4saw discover agent "El Geneina" "Masalit" "RSF" "Darfur" \
-  --geography Sudan --loop --interval 1200 --yes
+# conflict-region corpus
+ai4saw discover agent "Location Beta" "Group Beta" "Armed-Group-Beta" "Province Beta" \
+  --geography conflict-region --loop --interval 1200 --yes
 
 # Check what it's discovered
-ai4saw discover agent "Srebrenica" --geography Bosnia --state
+ai4saw discover agent "Location Alpha" --geography conflict-region --state
 
 # Read the last 5 reasoning entries
-ai4saw discover agent "Srebrenica" --geography Bosnia --log 5
+ai4saw discover agent "Location Alpha" --geography conflict-region --log 5
 ```
 
 ## ReAct loop
@@ -83,12 +83,12 @@ The LLM returns:
 
 ```json
 {
-  "novel_entities": ["Dražen Erdemović", "10th Sabotage Detachment"],
+  "novel_entities": ["Witness Alpha", "Unit Alpha"],
   "queries": [
-    "Dražen Erdemović plea agreement ICTY 1996",
-    "10th Sabotage Detachment VRS Branjevo Farm executions July 1995"
+    "Witness Alpha plea agreement International Tribunal 1996",
+    "Unit Alpha Armed-Group-Alpha Site Alpha executions a specific date"
   ],
-  "reasoning": "Erdemović's testimony is the primary eyewitness account; his unit directly carried out the executions"
+  "reasoning": "Witness Alpha's testimony is the primary eyewitness account; his unit directly carried out the executions"
 }
 ```
 
@@ -116,13 +116,13 @@ All state is written to `output/agent_discover_state.json` between sessions. Res
 Every LLM reasoning call is appended to `output/agent_discover_log.jsonl`:
 
 ```jsonl
-{"source_url": "https://icty.org/...", "source_title": "Krstić Trial Judgment", "novel_entities": ["Dražen Erdemović", "10th Sabotage Detachment"], "generated_queries": ["Dražen Erdemović plea ICTY 1996", ...], "reasoning": "Erdemović is the primary execution witness...", "timestamp": "2026-06-01T14:22:00Z"}
+{"source_url": "https://tribunal.int/...", "source_title": "Commander Beta Trial Judgment", "novel_entities": ["Witness Alpha", "Unit Alpha"], "generated_queries": ["Witness Alpha plea International Tribunal 1996", ...], "reasoning": "Witness Alpha is the primary execution witness...", "timestamp": "2026-06-01T14:22:00Z"}
 ```
 
 Read the last N entries:
 
 ```bash
-ai4saw discover agent "Srebrenica" --geography Bosnia --log 10
+ai4saw discover agent "Location Alpha" --geography conflict-region --log 10
 ```
 
 This gives full transparency into the agent's reasoning chain.
@@ -146,16 +146,16 @@ This gives full transparency into the agent's reasoning chain.
 
 ```bash
 # discover fetch — static API queries, good for a first bootstrap
-ai4saw discover fetch "Srebrenica" "Mladic" \
-  --geography Bosnia --max-docs 100 --yes
+ai4saw discover fetch "Location Alpha" "Commander Alpha" \
+  --geography conflict-region --max-docs 100 --yes
 
 # discover web — stateful crawler, adapts query order, runs overnight
-ai4saw discover web "Srebrenica" "Mladic" \
-  --geography Bosnia --loop --interval 900 --yes
+ai4saw discover web "Location Alpha" "Commander Alpha" \
+  --geography conflict-region --loop --interval 900 --yes
 
 # discover agent — LLM reasoning loop, corpus builds from evidence
-ai4saw discover agent "Srebrenica" "Mladic" \
-  --geography Bosnia --loop --interval 1200 --yes
+ai4saw discover agent "Location Alpha" "Commander Alpha" \
+  --geography conflict-region --loop --interval 1200 --yes
 ```
 
 **Recommended workflow:** run `discover fetch` once to bootstrap, then `discover agent --loop` to let the reasoning agent grow the corpus from what it finds.

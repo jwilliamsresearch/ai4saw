@@ -145,4 +145,4 @@ ai4saw/
 
 **Two-layer retrieval.** MMR (maximal marginal relevance) retrieval reduces redundancy; cross-encoder reranking then re-scores for relevance. The cross-encoder degrades gracefully to the original ranking if not installed.
 
-**Temporal edges in the knowledge graph.** Every edge carries `valid_from` and `valid_to` fields (ISO 8601). This enables queries like "what was the command structure in July 1995?" without rebuilding the graph.
+**Temporal edges in the knowledge graph.** Every edge carries `valid_from` and `valid_to` fields (ISO 8601). This enables queries like "what was the command structure in a specific date?" without rebuilding the graph.

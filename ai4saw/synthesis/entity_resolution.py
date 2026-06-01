@@ -1,6 +1,6 @@
 """Entity Resolution — cross-document entity deduplication and canonical registry.
 
-Problem: NER processes each chunk independently, so "the RSF", "Rapid Support Forces",
+Problem: NER processes each chunk independently, so "the Armed-Group-Beta", "Rapid Support Forces",
 and "the Khartoum paramilitaries" appear as three separate entity records. For network
 analysis, silence detection, and any aggregation across the corpus, these must be
 unified into one canonical entity with aliases.
@@ -16,7 +16,7 @@ Algorithm:
 
 The threshold pair (cosine + fuzzy) prevents false merges: embeddings alone can
 conflate different organisations in the same domain, while string matching alone
-misses "RSF" ↔ "Rapid Support Forces". Both checks together are much more precise.
+misses "Armed-Group-Beta" ↔ "Rapid Support Forces". Both checks together are much more precise.
 """
 
 from __future__ import annotations

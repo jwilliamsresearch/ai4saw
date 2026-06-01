@@ -1,4 +1,4 @@
-# AI4SAW: Setup to Hero
+﻿# AI4SAW: Setup to Hero
 
 A complete walkthrough from a fresh clone to a working, demonstrable intelligence extraction pipeline on conflict-related corpora.
 
@@ -86,15 +86,15 @@ Expected: green table showing provider, model, artefact paths. If any path shows
 For sources available via open APIs, Phase 1 is now a single command. The `discover fetch` pipeline discovers, downloads, registers in `corpus/sources.csv`, and ingests in one step:
 
 ```bash
-# Bosnia pilot
-ai4saw discover fetch "Srebrenica" "Mladic" "Bosnian Serb Army" "VRS" \
-  --geography Bosnia \
+# conflict-region pilot
+ai4saw discover fetch "Location Alpha" "Commander Alpha" "Armed Group Alpha" "Armed-Group-Alpha" \
+  --geography conflict-region \
   --max-docs 25 \
   --min-relevance 0.5
 
-# Sudan/Darfur pilot
-ai4saw discover fetch "El Geneina" "Masalit" "Rapid Support Forces" "RSF" "Darfur" \
-  --geography Sudan \
+# conflict-region/Province Beta pilot
+ai4saw discover fetch "Location Beta" "Group Beta" "Rapid Support Forces" "Armed-Group-Beta" "Province Beta" \
+  --geography conflict-region \
   --max-docs 25 \
   --min-relevance 0.5
 ```
@@ -105,12 +105,12 @@ Sources fetched automatically:
 - **ReliefWeb** — UN and NGO humanitarian reports (PDFs and HTML)
 - **GDELT** — global news articles in 65+ languages (HTML)
 
-### 1.2 Manual documents (ICTY, ICC, HRW PDFs)
+### 1.2 Manual documents (International Tribunal, ICC, HRW PDFs)
 
 Sources without open APIs require manual download. These are high-value but need custom scrapers (deferred post-v0.1):
 
-- **ICTY/IRMCT** — trial judgements, indictments, evidence transcripts (icty.org)
-- **ICC** — situation documents, warrants, judgements (icc-cpi.int)
+- **International Tribunal/IRMCT** — trial judgements, indictments, evidence transcripts (tribunal.int)
+- **ICC** — situation documents, warrants, judgements (court.int)
 - **HRW** — country reports 1995–2007 (hrw.org/reports)
 - **OHCHR** — special rapporteur reports, treaty body documents
 
@@ -119,11 +119,11 @@ For these, download PDFs manually, place in `corpus/`, then register and ingest:
 ```bash
 # Register in sources.csv (add a row manually):
 # filename,source_url,date_accessed,licence,geography,notes
-# icty_krstic_judgement.pdf,https://icty.org/...,2026-06-01,public,Bosnia,ICTY trial judgement
+# icty_krstic_judgement.pdf,https://tribunal.int/...,2026-06-01,public,Bosnia,International Tribunal trial judgement
 
 # Then ingest:
 ai4saw ingest file corpus/icty_krstic_judgement.pdf \
-  --doc-type report --geography Bosnia --date-published 2001-08-02
+  --doc-type report --geography conflict-region --date-published 2001-08-02
 ```
 
 > **Why geography matters:** The pipeline uses geography tags to weight entity resolution and silence detection. Set it correctly on ingest; it's expensive to change later.
@@ -143,7 +143,7 @@ Target: **≥ 200 chunks** in ChromaDB before moving to extraction. For a 10-doc
 ### 2.1 Ingest corpus
 
 ```bash
-ai4saw ingest corpus ./corpus --geography Bosnia
+ai4saw ingest corpus ./corpus --geography conflict-region
 ```
 
 This:
@@ -192,7 +192,7 @@ After extraction completes, deduplicate entities across documents:
 ai4saw extract resolve
 ```
 
-This runs cosine similarity + fuzzy string matching via union-find clustering to merge e.g. `"Ratko Mladic"`, `"General Mladic"`, `"R. Mladic"` into one canonical entity.
+This runs cosine similarity + fuzzy string matching via union-find clustering to merge e.g. `"Commander Alpha"`, `"Commander Alpha"`, `"R. Commander Alpha"` into one canonical entity.
 
 Output: `data/entity_registry.json`
 
@@ -220,10 +220,10 @@ Output: `data/knowledge_graph.json`
 
 ```bash
 # Standard GraphRAG — k-hop subgraph + vector search
-ai4saw graph query "Who commanded Bosnian Serb forces at Srebrenica?"
+ai4saw graph query "Who commanded armed forces in the conflict region?"
 
 # Temporal filter — state of relations at a specific date
-ai4saw graph query "Who was in command?" --at 1995-07-11
+ai4saw graph query "Who was in command?" --at YYYY-MM-DD
 ```
 
 Expected: answer with source citations and confidence. If the graph returns nothing, increase `--hops` (default 2) or check that entity resolution produced nodes.
@@ -233,7 +233,7 @@ Expected: answer with source citations and confidence. If the graph returns noth
 For complex questions that require chaining multiple evidence sources:
 
 ```bash
-ai4saw graph agent "What is the chain of command between Mladic and the execution units, and what evidence links them?"
+ai4saw graph agent "What is the chain of command between Commander Alpha and the execution units, and what evidence links them?"
 ```
 
 The LangGraph ReAct agent uses three tools iteratively: vector search, graph query, entity lookup. Expect 3–6 tool calls before a final answer.
@@ -288,7 +288,7 @@ Expand the corpus using top entities from your registry:
 
 ```bash
 # Discover using specific entity names
-ai4saw discover run "Srebrenica" "Mladic" "VRS"
+ai4saw discover run "Location Alpha" "Commander Alpha" "Armed-Group-Alpha"
 
 # Auto-discover using top entities from registry
 ai4saw discover run --from-registry
@@ -345,13 +345,13 @@ A complete demonstration sequence that shows the full pipeline capability:
 ai4saw info
 
 # 2. Ask a factual question with vector RAG
-ai4saw query ask "What methods of forced labour were documented in Darfur between 2003 and 2005?"
+ai4saw query ask "What methods of forced labour were documented in Province Beta between 2003 and 2005?"
 
 # 3. Ask a command-chain question with GraphRAG
-ai4saw graph query "Who gave orders for population displacement in Eastern Bosnia in 1995?" --at 1995-07-15
+ai4saw graph query "Who gave orders for population displacement in Eastern conflict-region in 1995?" --at 1995-07-15
 
 # 4. Ask a multi-hop question with the agent
-ai4saw graph agent "What is the chain of command linking senior RSF leadership to documented atrocities in El Geneina?"
+ai4saw graph agent "What is the chain of command linking senior Armed-Group-Beta leadership to documented atrocities in Location Beta?"
 
 # 5. Show a contradiction
 cat output/contradictions.json | head -50
@@ -365,7 +365,7 @@ cat output/network.json | python -c "import json,sys; d=json.load(sys.stdin); pr
 ### 8.2 What makes it impressive
 
 - **Citation trail**: Every answer cites chunk IDs, source documents, page numbers. Not a chatbot — an evidence pipeline.
-- **Temporal precision**: `--at 1995-07-11` narrows the knowledge graph to what was true on the day of the Srebrenica massacre.
+- **Temporal precision**: `--at YYYY-MM-DD` narrows the knowledge graph to what was true on the day of the Location Alpha massacre.
 - **Contested narratives surfaced, not suppressed**: Contradictions between witness accounts and official records are explicitly ranked and reported.
 - **Silence is evidence**: The pipeline can tell you what *isn't* documented — a research-grade finding, not a retrieval failure.
 - **Network visualization**: Gephi renders the command structure. Betweenness centrality identifies key brokers that may not appear prominently in raw text.
@@ -390,7 +390,7 @@ cat output/network.json | python -c "import json,sys; d=json.load(sys.stdin); pr
 
 - **Geocoding**: `ai4saw/synthesis/geocoder.py` is a stub. GeoJSON events export latitude/longitude as `null` until this is implemented. Options: Nominatim (free, slow), GeoNames (free API key), or few-shot LLM geocoder.
 - **Multilingual**: Framework exists (`language` field in `ChunkMetadata`), but extraction prompts are English-only. Bosnian/Arabic sources need translation pre-processing or multilingual models.
-- **CDISaW write-back**: Schema alignment between AI4SAW's entity/event model and the CDISaW dataset format is deferred post-v0.1.
+- **your-dataset write-back**: Schema alignment between AI4SAW's entity/event model and the your-dataset dataset format is deferred post-v0.1.
 - **Unit tests**: `eval/` covers benchmarking, not unit tests. No `test_*.py` files exist. Add if contributing to shared research infrastructure.
 
 ---

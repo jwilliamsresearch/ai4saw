@@ -1,4 +1,4 @@
-# Extraction
+﻿# Extraction
 
 Three extraction tasks run against every chunk: NER, relation extraction, and event classification. All outputs are Pydantic v2 validated and saved to `output/`.
 
@@ -19,12 +19,12 @@ Entity types extracted:
 
 | Label | Examples |
 |---|---|
-| `PERSON` | Ratko Mladić, Zdravko Tolimir |
-| `ORG` | ICTY, Human Rights Watch, Drina Corps |
-| `LOCATION` | Srebrenica, El Geneina, West Darfur |
+| `PERSON` | Commander Alpha, Zdravko Tolimir |
+| `ORG` | International Tribunal, Human Rights Watch, Drina Corps |
+| `LOCATION` | Location Alpha, Location Beta, West Province Beta |
 | `FACILITY` | Kravica warehouse, Manjača camp |
 | `EVENT` | Operation Deliberate Force |
-| `GROUP` | Masalit, Bosniak, Rohingya |
+| `GROUP` | Group Beta, Bosniak, Rohingya |
 | `LEGAL_INSTRUMENT` | Rome Statute, UN Security Council Resolution 827 |
 
 Output schema:

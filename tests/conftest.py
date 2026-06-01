@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for the AI4SAW test suite."""
+﻿"""Shared pytest fixtures for the AI4SAW test suite."""
 
 from __future__ import annotations
 
@@ -18,16 +18,16 @@ from langchain_core.documents import Document
 def sample_doc() -> Document:
     return Document(
         page_content=(
-            "The Bosnian Serb Army (VRS) under General Ratko Mladić carried out "
-            "systematic attacks on the civilian population of Srebrenica in July 1995. "
-            "Dutch Battalion (Dutchbat) troops were present but unable to prevent the massacre."
+            "The Armed Group Alpha (Armed-Group-Alpha) under Commander Alpha carried out "
+            "systematic attacks on the civilian population of Location Alpha in a specific date. "
+            "Peacekeeping Unit (Peacekeeping Unit) troops were present but unable to prevent the massacre."
         ),
         metadata={
             "source_filename": "srebrenica_report.pdf",
             "source_url": "https://example.com/srebrenica.pdf",
             "doc_type": "report",
             "language": "en",
-            "geography": "Bosnia",
+            "geography": "conflict-region",
             "chunk_index": 0,
         },
     )
@@ -60,9 +60,9 @@ def make_mock_llm(content: str) -> MagicMock:
 def mock_llm_ner():
     return make_mock_llm(json.dumps({
         "entities": [
-            {"text": "Ratko Mladić", "label": "PERSON", "confidence": 0.95},
-            {"text": "VRS", "label": "ORG", "confidence": 0.90},
-            {"text": "Srebrenica", "label": "LOCATION", "confidence": 0.98},
+            {"text": "Commander Alpha", "label": "PERSON", "confidence": 0.95},
+            {"text": "Armed-Group-Alpha", "label": "ORG", "confidence": 0.90},
+            {"text": "Location Alpha", "label": "LOCATION", "confidence": 0.98},
         ]
     }))
 
@@ -70,12 +70,12 @@ def mock_llm_ner():
 @pytest.fixture
 def mock_llm_reasoning():
     return make_mock_llm(json.dumps({
-        "novel_entities": ["Dutch Battalion", "Dražen Erdemović"],
+        "novel_entities": ["Peacekeeping Unit", "Witness Alpha"],
         "queries": [
-            "Dutch Battalion UNPROFOR Srebrenica report 1995",
-            "Dražen Erdemović plea agreement ICTY 1996",
+            "Peacekeeping Unit UNPROFOR Location Alpha report 1995",
+            "Witness Alpha plea agreement International Tribunal 1996",
         ],
-        "reasoning": "Erdemović is primary eyewitness; Dutchbat report is primary source.",
+        "reasoning": "Witness Alpha is primary eyewitness; Peacekeeping Unit report is primary source.",
     }))
 
 
@@ -96,7 +96,7 @@ def sources_csv(tmp_path) -> Path:
             "source_url": "https://hrw.org/report1.pdf",
             "date_accessed": "2026-06-01",
             "licence": "open-access",
-            "geography": "Bosnia",
+            "geography": "conflict-region",
             "notes": "test",
         })
         writer.writerow({
@@ -104,7 +104,7 @@ def sources_csv(tmp_path) -> Path:
             "source_url": "https://gdelt.org/article1",
             "date_accessed": "2026-06-01",
             "licence": "news",
-            "geography": "Sudan",
+            "geography": "conflict-region",
             "notes": "test",
         })
     return path
@@ -128,13 +128,13 @@ def empty_sources_csv(tmp_path) -> Path:
 def sample_discovered_doc():
     from ai4saw.core.models import DiscoveredDocument
     return DiscoveredDocument(
-        title="Srebrenica: A Safe Area",
+        title="Location Alpha: A Safe Area",
         url="https://archive.org/details/srebrenica-report",
         source="internetarchive",
         date="1995-11-01",
         relevance_score=0.80,
-        trigger_entity="Srebrenica",
-        snippet="ICTY investigation into the fall of Srebrenica.",
+        trigger_entity="Location Alpha",
+        snippet="International Tribunal investigation into the fall of Location Alpha.",
     )
 
 
@@ -149,4 +149,4 @@ def fresh_web_state():
 @pytest.fixture
 def fresh_agent_state():
     from ai4saw.agents.agent_discover import AgentDiscoverState
-    return AgentDiscoverState(initial_entities=["Srebrenica", "Mladic"])
+    return AgentDiscoverState(initial_entities=["Location Alpha", "Commander Alpha"])

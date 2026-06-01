@@ -70,7 +70,7 @@ Three dimensions, scored 0.0–1.0:
       "relation_score": 0.6,
       "event_score": 0.85,
       "overall_score": 0.75,
-      "issues": ["Relation 'commanded' has no evidence span", "Missed entity: ICTY"],
+      "issues": ["Relation 'commanded' has no evidence span", "Missed entity: International Tribunal"],
       "explanation": "..."
     }
   ]
