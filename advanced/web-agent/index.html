@@ -1623,28 +1623,41 @@
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p><code>discover web</code> is a self-improving web crawler that searches, learns, and ingests documents continuously — with no API keys and no manual input.</p>
 <p>Unlike <code>discover fetch</code> (which runs fixed API queries on a schedule), the web agent maintains <strong>persistent memory</strong> across sessions. It remembers every URL it has visited, scores which sources and query strategies produce the best results, and maintains a priority frontier of URLs still to explore.</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Session 1:  DDG query → 80 URLs → frontier (size 80)
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Session 2:  drain frontier → visit 30 → extract links → frontier (size 120)
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Session 3:  drain frontier → 30 more → frontier (size 95)
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>Session 4:  fresh DDG (every 4th) + drain → frontier grows again
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>...
-</span></code></pre></div>
-<p>The corpus grows continuously as the agent works through its backlog and rediscovers new documents.</p>
+<pre class="mermaid"><code>flowchart LR
+    subgraph sources [Discovery — every 4th session]
+        DDG[DuckDuckGo\n5 templates × entity]
+        WP[Wikipedia\nexternal links]
+        CR[CrossRef\nopen access]
+    end
+
+    sources --&gt;|new URLs| FR
+
+    FR["Priority Frontier\n(sorted by score)"]
+
+    FR --&gt;|drain top-N\nevery session| V[Visit URL]
+
+    V --&gt;|PDF| IN[Ingest\nChromaDB]
+    V --&gt;|HTML| LF[Extract links]
+    LF --&gt;|PDF or trusted domain| FR
+
+    IN --&gt;|update| DS[Domain scores\nQuery stats]
+    DS -.-&gt;|adapt priority| FR</code></pre>
+<p>The corpus grows continuously as the agent works through its backlog. Between discovery sessions it purely drains the frontier — no new API calls needed.</p>
 <h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># First run: discover and build the frontier</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span><span class="s2">&quot;Mladic&quot;</span><span class="w"> </span><span class="s2">&quot;VRS&quot;</span><span class="w"> </span><span class="s2">&quot;Bosnia&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--yes
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># Run overnight, re-querying every hour (4 × 15 min sessions)</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span><span class="s2">&quot;Mladic&quot;</span><span class="w"> </span><span class="s2">&quot;VRS&quot;</span><span class="w"> </span><span class="s2">&quot;Bosnia&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">900</span><span class="w"> </span>--yes
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1"># Sudan corpus</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;El Geneina&quot;</span><span class="w"> </span><span class="s2">&quot;Masalit&quot;</span><span class="w"> </span><span class="s2">&quot;RSF&quot;</span><span class="w"> </span><span class="s2">&quot;Darfur&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span>--geography<span class="w"> </span>Sudan<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">900</span><span class="w"> </span>--yes
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># Check what the agent has learned</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--state
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># First run: discover and build the frontier</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span><span class="s2">&quot;Mladic&quot;</span><span class="w"> </span><span class="s2">&quot;VRS&quot;</span><span class="w"> </span><span class="s2">&quot;Bosnia&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--yes
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Run overnight, re-querying every hour (4 × 15 min sessions)</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span><span class="s2">&quot;Mladic&quot;</span><span class="w"> </span><span class="s2">&quot;VRS&quot;</span><span class="w"> </span><span class="s2">&quot;Bosnia&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">900</span><span class="w"> </span>--yes
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Sudan corpus</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;El Geneina&quot;</span><span class="w"> </span><span class="s2">&quot;Masalit&quot;</span><span class="w"> </span><span class="s2">&quot;RSF&quot;</span><span class="w"> </span><span class="s2">&quot;Darfur&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span>--geography<span class="w"> </span>Sudan<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">900</span><span class="w"> </span>--yes
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1"># Check what the agent has learned</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--state
 </span></code></pre></div>
 <h2 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
 <h3 id="persistent-state-outputweb_agent_statejson">Persistent state (<code>output/web_agent_state.json</code>)<a class="headerlink" href="#persistent-state-outputweb_agent_statejson" title="Permanent link">&para;</a></h3>
@@ -1818,66 +1831,66 @@
 <h2 id="session-structure">Session structure<a class="headerlink" href="#session-structure" title="Permanent link">&para;</a></h2>
 <p>Each session does two things:</p>
 <p><strong>1. Frontier drain</strong> (every session)</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>frontier (sorted by priority)
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  → pop top-N items
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>  → for each URL:
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>      → ingest if quality threshold met
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>      → extract links from HTML pages
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>      → add new links back to frontier
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>  → save state
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>frontier (sorted by priority)
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  → pop top-N items
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  → for each URL:
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>      → ingest if quality threshold met
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>      → extract links from HTML pages
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>      → add new links back to frontier
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>  → save state
 </span></code></pre></div>
 <p><strong>2. Fresh discovery</strong> (every <code>--rediscover-every</code> sessions)</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>DuckDuckGo (5 templates × N entities)
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Wikipedia  (search + external links)
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>CrossRef   (open-access papers)
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>  → all new URLs → frontier
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>DuckDuckGo (5 templates × N entities)
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>Wikipedia  (search + external links)
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>CrossRef   (open-access papers)
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>  → all new URLs → frontier
 </span></code></pre></div>
 <h2 id="state-summary-output">State summary output<a class="headerlink" href="#state-summary-output" title="Permanent link">&para;</a></h2>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>ai4saw discover web &quot;Srebrenica&quot; --geography Bosnia --state
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ai4saw discover web &quot;Srebrenica&quot; --geography Bosnia --state
 </span></code></pre></div>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>╭─ Web Agent State ─────────────────────╮
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>│ Sessions run:      12                 │
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>│ URLs visited:      847                │
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>│ Frontier size:     2,341              │
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>│ Docs ingested:     94                 │
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>│ Chunks added:      3,201              │
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>│ Last run:          2026-06-01T14:22Z  │
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>╰───────────────────────────────────────╯
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>Top domains by hit rate
-</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a> Domain            Score   Hits  Attempts
-</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a> hrw.org           0.82      14        17
-</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a> archive.org       0.71      22        31
-</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a> icty.org          0.67       8        12
-</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>
-</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>Top query templates by yield
-</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a> Template key      Yield/run   Runs
-</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a> hrw_amnesty       4.2           8
-</span><span id="__span-5-19"><a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a> pdf_report        3.1           8
-</span><span id="__span-5-20"><a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a> icty_icc          1.8           8
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>╭─ Web Agent State ─────────────────────╮
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>│ Sessions run:      12                 │
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>│ URLs visited:      847                │
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>│ Frontier size:     2,341              │
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>│ Docs ingested:     94                 │
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>│ Chunks added:      3,201              │
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>│ Last run:          2026-06-01T14:22Z  │
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>╰───────────────────────────────────────╯
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>Top domains by hit rate
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a> Domain            Score   Hits  Attempts
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a> hrw.org           0.82      14        17
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a> archive.org       0.71      22        31
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a> icty.org          0.67       8        12
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>Top query templates by yield
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a> Template key      Yield/run   Runs
+</span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a> hrw_amnesty       4.2           8
+</span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a> pdf_report        3.1           8
+</span><span id="__span-4-20"><a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a> icty_icc          1.8           8
 </span></code></pre></div>
 <h2 id="recommended-workflow">Recommended workflow<a class="headerlink" href="#recommended-workflow" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># 1. Bootstrap: one-shot discovery run to build the initial frontier</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span><span class="s2">&quot;Mladic&quot;</span><span class="w"> </span><span class="s2">&quot;VRS&quot;</span><span class="w"> </span><span class="s2">&quot;Bosnia&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--yes
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1"># 2. Let it run overnight (96 sessions at 15-min intervals)</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span><span class="s2">&quot;Mladic&quot;</span><span class="w"> </span><span class="s2">&quot;VRS&quot;</span><span class="w"> </span><span class="s2">&quot;Bosnia&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">900</span><span class="w"> </span>--yes
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
-</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="c1"># 3. After extraction + graph build, add silence candidates</span>
-</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Foča&quot;</span><span class="w"> </span><span class="s2">&quot;Prijedor&quot;</span><span class="w"> </span><span class="s2">&quot;Brčko&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">900</span><span class="w"> </span>--yes
-</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
-</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="c1"># 4. Check progress at any time (safe to run while --loop is running in another terminal)</span>
-</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--state
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># 1. Bootstrap: one-shot discovery run to build the initial frontier</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span><span class="s2">&quot;Mladic&quot;</span><span class="w"> </span><span class="s2">&quot;VRS&quot;</span><span class="w"> </span><span class="s2">&quot;Bosnia&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--yes
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># 2. Let it run overnight (96 sessions at 15-min intervals)</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span><span class="s2">&quot;Mladic&quot;</span><span class="w"> </span><span class="s2">&quot;VRS&quot;</span><span class="w"> </span><span class="s2">&quot;Bosnia&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">900</span><span class="w"> </span>--yes
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="c1"># 3. After extraction + graph build, add silence candidates</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Foča&quot;</span><span class="w"> </span><span class="s2">&quot;Prijedor&quot;</span><span class="w"> </span><span class="s2">&quot;Brčko&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--loop<span class="w"> </span>--interval<span class="w"> </span><span class="m">900</span><span class="w"> </span>--yes
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="c1"># 4. Check progress at any time (safe to run while --loop is running in another terminal)</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Srebrenica&quot;</span><span class="w"> </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--state
 </span></code></pre></div>
 <h2 id="combining-with-silence-detection">Combining with silence detection<a class="headerlink" href="#combining-with-silence-detection" title="Permanent link">&para;</a></h2>
 <p>The highest-value use is targeting locations identified by the silence detector:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># After graph build, silence detection tells you where gaps are</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1"># Feed those locations directly to the web agent</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Foča&quot;</span><span class="w"> </span><span class="s2">&quot;Priboj&quot;</span><span class="w"> </span><span class="s2">&quot;Višegrad&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--loop<span class="w"> </span>--yes
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># After graph build, silence detection tells you where gaps are</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c1"># Feed those locations directly to the web agent</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>ai4saw<span class="w"> </span>discover<span class="w"> </span>web<span class="w"> </span><span class="s2">&quot;Foča&quot;</span><span class="w"> </span><span class="s2">&quot;Priboj&quot;</span><span class="w"> </span><span class="s2">&quot;Višegrad&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span>--geography<span class="w"> </span>Bosnia<span class="w"> </span>--loop<span class="w"> </span>--yes
 </span></code></pre></div>
 <p>These are the locations where corpus gaps are largest and new evidence has the highest research value.</p>
 
