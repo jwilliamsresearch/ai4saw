@@ -1,0 +1,114 @@
+site_name: AI4SAW
+site_description: AI for Slavery and War — Open Intelligence Extraction Pipeline
+site_author: James Williams, University of Nottingham
+repo_url: https://github.com/jwilliamsresearch/ai4saw
+repo_name: jwilliamsresearch/ai4saw
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tooltips
+    - announce.dismiss
+  palette:
+    - scheme: slate
+      primary: black
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: black
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/chart-timeline-variant-shimmer
+
+plugins:
+  - search:
+      lang: en
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            show_category_heading: true
+            docstring_style: google
+            heading_level: 2
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/jwilliamsresearch/ai4saw
+    - icon: fontawesome/solid/envelope
+      link: mailto:James.williams4@nottingham.ac.uk
+  generator: false   # removes "Made with Material" footer line
+
+copyright: >
+  James Williams, University of Nottingham &nbsp;|&nbsp;
+  <a href="mailto:James.williams4@nottingham.ac.uk">James.williams4@nottingham.ac.uk</a>
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Architecture: architecture.md
+  - Providers: providers.md
+  - Pipeline:
+    - Ingestion: pipeline/ingestion.md
+    - Extraction: pipeline/extraction.md
+    - Retrieval: pipeline/retrieval.md
+  - Advanced Features:
+    - Entity Resolution: advanced/entity-resolution.md
+    - GraphRAG + Temporal Graph: advanced/graph-rag.md
+    - Multi-hop Agent: advanced/agent.md
+    - Contradiction Detection: advanced/contradiction.md
+    - Perpetrator Network: advanced/network.md
+    - Corpus Discovery: advanced/discovery.md
+    - Silence Detection: advanced/silence.md
+    - MCP Server: advanced/mcp.md
+    - LLM-as-Judge: advanced/llm-judge.md
+  - Evaluation: evaluation.md
+  - CLI Reference: cli-reference.md
+  - Corpus Management: corpus.md

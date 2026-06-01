@@ -1,0 +1,79 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── uv ───────────────────────────────────────────────────────────────────────
+# uv.lock is committed — it ensures reproducible installs
+# .python-version is committed — it pins the interpreter
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+# .env.example is committed — it documents required variables without values
+
+# ── Generated data ────────────────────────────────────────────────────────────
+# ChromaDB vector store (large, regenerable from corpus)
+data/chroma/
+
+# Extraction results (regenerable)
+output/
+
+# Knowledge graph and entity registry (regenerable)
+data/knowledge_graph.json
+data/entity_registry.json
+
+# Logs
+logs/
+
+# ── Corpus ────────────────────────────────────────────────────────────────────
+# Do not commit source documents — they may be copyrighted or sensitive.
+# corpus/sources.csv IS committed — it is the provenance register.
+corpus/*.pdf
+corpus/*.html
+corpus/*.htm
+corpus/*.docx
+corpus/*.txt
+corpus/*.md
+!corpus/sources.csv
+
+# ── Eval results ─────────────────────────────────────────────────────────────
+# Gold standard testdata IS committed (it is hand-labelled ground truth).
+# Benchmark results are committed to make claims verifiable.
+# eval/results/ is committed.
+
+# ── Notebooks ────────────────────────────────────────────────────────────────
+# Checkpoint files are not committed (large, auto-generated)
+notebooks/.ipynb_checkpoints/
+.ipynb_checkpoints/
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ── Type stubs ────────────────────────────────────────────────────────────────
+*.pyi
+py.typed

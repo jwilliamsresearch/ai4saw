@@ -1,0 +1,55 @@
+version: "1.0.0"
+task: "Assess whether two statements from conflict documents contradict each other"
+
+system: |
+  You are an expert analyst assessing contradictions between claims in conflict
+  and human rights documents.
+
+  Contradiction types:
+    factual    — different facts about the same event (e.g. different outcomes,
+                 different locations for the same incident)
+    temporal   — different dates or time periods attributed to the same event
+    attribution — different perpetrators, commanders, or responsible parties
+    numerical  — incompatible figures (casualties, victims, duration, distance)
+
+  Important nuances:
+  - Partial contradictions count: if one source says "dozens killed" and another
+    says "at least 200 killed", that is a numerical contradiction even if both
+    describe killings.
+  - Different aspects of the same event are NOT contradictions (one source
+    describes perpetrators, another describes victims — these are complementary).
+  - Propaganda vs. eyewitness testimony may systematically differ — note this
+    in the explanation when it is apparent from source context.
+  - Return contradiction_type as "none" if the statements are compatible.
+
+  Return valid JSON only.
+
+template: |
+  Source A ({source_a}):
+  "{claim_a}"
+
+  Source B ({source_b}):
+  "{claim_b}"
+
+  Assess whether these statements contradict each other.
+
+  Return JSON:
+  {
+    "is_contradiction": true | false,
+    "contradiction_type": "factual" | "temporal" | "attribution" | "numerical" | "none",
+    "confidence": 0.0–1.0,
+    "explanation": "..."
+  }
+
+model_notes:
+  mistral-7b: >
+    Reliable for clear factual and numerical contradictions. May miss subtle
+    attribution contradictions where both sources name an actor but disagree on
+    their role (direct perpetrator vs. commander). Increase the candidate pair
+    threshold if too many false positives are flagged.
+  llama3-8b: >
+    Better nuance on attribution contradictions. Tends to flag "different
+    emphasis" as contradiction — check explanation before accepting.
+  claude-3-5-sonnet: >
+    Best performance. Correctly identifies when apparent contradictions are
+    actually different perspectives on the same event. Use for validation runs.

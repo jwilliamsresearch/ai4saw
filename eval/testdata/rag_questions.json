@@ -1,0 +1,42 @@
+[
+  {
+    "question": "What methods of forced labour were documented in Bosnian detention camps during the 1992–1995 conflict?",
+    "ground_truth": "Detainees in Bosnian detention camps were subjected to various forms of forced labour including clearing minefields, digging trenches, performing agricultural work, and conducting maintenance tasks at military installations."
+  },
+  {
+    "question": "Which organisations documented human rights violations in West Darfur in 2023?",
+    "ground_truth": "Multiple organisations including Human Rights Watch, Amnesty International, and UN agencies documented violations in West Darfur in 2023 including attacks on the Masalit community."
+  },
+  {
+    "question": "What legal instruments govern the prosecution of sexual violence as a war crime?",
+    "ground_truth": "The Rome Statute of the International Criminal Court classifies sexual violence including rape and sexual slavery as crimes against humanity and war crimes. The ICTY and ICTR established precedents treating systematic sexual violence as genocide in some circumstances."
+  },
+  {
+    "question": "How were civilian populations displaced during the siege of Sarajevo?",
+    "ground_truth": "During the siege of Sarajevo, civilians were displaced through ongoing sniper fire, artillery bombardment, and restricted movement. Many fled through the Sarajevo tunnel or were evacuated through humanitarian corridors."
+  },
+  {
+    "question": "What role did the Rapid Support Forces play in the conflict in Sudan in 2023?",
+    "ground_truth": "The Rapid Support Forces, a paramilitary group, engaged in widespread attacks on civilians in Darfur, including killings, sexual violence, looting, and displacement of the Masalit and other communities."
+  },
+  {
+    "question": "What evidence exists for trafficking networks operating in conflict zones?",
+    "ground_truth": "Evidence for trafficking networks includes survivor testimonies, NGO documentation, and judicial records showing recruitment under false pretences, exploitation of displacement, and movement of victims across conflict borders."
+  },
+  {
+    "question": "How did the ICTY define and prosecute arbitrary detention?",
+    "ground_truth": "The ICTY prosecuted arbitrary detention as a crime against humanity, requiring proof of systematic or widespread imprisonment without legal basis. Cases including Tadić and Kvočka established key precedents."
+  },
+  {
+    "question": "What geographic areas show gaps in documentation of conflict-related slavery?",
+    "ground_truth": ""
+  },
+  {
+    "question": "Which perpetrator groups have been identified in connection with forced labour in the Sudanese conflict?",
+    "ground_truth": "Perpetrator groups identified include the Rapid Support Forces, Sudanese Armed Forces, and various affiliated militias. Commanders have been named in UN reports and ICC proceedings."
+  },
+  {
+    "question": "What is the CDISaW dataset and how does it relate to conflict-related slavery documentation?",
+    "ground_truth": "CDISaW is the Conflict-related and Displacement-related instances of Slavery dataset, a structured dataset documenting individual cases of slavery in conflict contexts used for academic and policy research."
+  }
+]

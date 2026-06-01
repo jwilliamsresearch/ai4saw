@@ -1,0 +1,49 @@
+[
+  {
+    "chunk_id": "gold_001",
+    "chunk_text": "Witness testimony collected by the ICTY confirmed that Ratko Mladić ordered the execution of prisoners held at the Kravica warehouse near Bratunac in July 1995.",
+    "entities": [
+      {"text": "ICTY", "label": "ORG"},
+      {"text": "Ratko Mladić", "label": "PERSON"},
+      {"text": "Kravica warehouse", "label": "FACILITY"},
+      {"text": "Bratunac", "label": "LOCATION"}
+    ]
+  },
+  {
+    "chunk_id": "gold_002",
+    "chunk_text": "The UN Security Council Resolution 827 established the International Criminal Tribunal for the former Yugoslavia to prosecute war crimes committed during the conflict in the Balkans.",
+    "entities": [
+      {"text": "UN Security Council Resolution 827", "label": "LEGAL_INSTRUMENT"},
+      {"text": "International Criminal Tribunal for the former Yugoslavia", "label": "ORG"},
+      {"text": "Balkans", "label": "LOCATION"}
+    ]
+  },
+  {
+    "chunk_id": "gold_003",
+    "chunk_text": "Sudanese Armed Forces and the Rapid Support Forces conducted a joint operation in West Darfur, targeting the Masalit community in El Geneina in April 2023.",
+    "entities": [
+      {"text": "Sudanese Armed Forces", "label": "ORG"},
+      {"text": "Rapid Support Forces", "label": "ORG"},
+      {"text": "West Darfur", "label": "LOCATION"},
+      {"text": "Masalit", "label": "GROUP"},
+      {"text": "El Geneina", "label": "LOCATION"}
+    ]
+  },
+  {
+    "chunk_id": "gold_004",
+    "chunk_text": "According to the Human Rights Watch report, detainees at Manjača camp were subjected to forced labour, including clearing minefields without protective equipment.",
+    "entities": [
+      {"text": "Human Rights Watch", "label": "ORG"},
+      {"text": "Manjača camp", "label": "FACILITY"}
+    ]
+  },
+  {
+    "chunk_id": "gold_005",
+    "chunk_text": "Former camp commander Zdravko Tolimir was convicted by the ICTY in 2012 for genocide and crimes against humanity relating to the Srebrenica massacre.",
+    "entities": [
+      {"text": "Zdravko Tolimir", "label": "PERSON"},
+      {"text": "ICTY", "label": "ORG"},
+      {"text": "Srebrenica", "label": "LOCATION"}
+    ]
+  }
+]

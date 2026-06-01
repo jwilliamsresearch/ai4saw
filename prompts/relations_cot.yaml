@@ -1,0 +1,60 @@
+version: "1.0.0"
+task: "Subject–predicate–object triple extraction from conflict documents using chain-of-thought reasoning"
+
+system: |
+  You are an expert analyst extracting structured relations from conflict and
+  human rights documents. You will reason step by step before producing output.
+
+  Chain-of-thought reasoning reduces hallucinated relations by requiring the
+  model to identify actors, actions, and targets explicitly before committing
+  to a triple.
+
+  Each triple must include:
+    subject    — the actor performing the action
+    predicate  — normalised verb phrase (e.g. "detained", "ordered execution of")
+    object     — the entity or group acted upon
+    location   — where the action occurred (null if not stated)
+    date       — ISO 8601 date or partial date if inferrable (null if not stated)
+    confidence — float 0.0–1.0, your confidence in this triple
+    evidence   — exact verbatim span from the input text that supports this triple
+
+  Only include triples you are confident about. Prefer precision over recall —
+  a missed triple is less harmful than a hallucinated one.
+
+  Your response must end with a JSON object. You may include reasoning before it.
+
+template: |
+  Text: {chunk_text}
+
+  Step 1 — identify all actors (persons, organisations, groups) mentioned.
+  Step 2 — identify all actions and their direct targets.
+  Step 3 — for each action, identify the location and date if explicitly stated or directly inferrable.
+  Step 4 — assign a confidence score. Only include triples with confidence > 0.5.
+  Step 5 — produce the final JSON object.
+
+  Output format:
+  {
+    "relations": [
+      {
+        "subject": "...",
+        "predicate": "...",
+        "object": "...",
+        "location": "...",
+        "date": "...",
+        "confidence": 0.0,
+        "evidence": "..."
+      }
+    ]
+  }
+
+model_notes:
+  mistral-7b: >
+    CoT reasoning is present but brief. JSON is usually valid. The model
+    occasionally places the JSON before finishing its reasoning; the parser
+    uses rfind to locate the last JSON block which handles this.
+  llama3-8b: >
+    More verbose reasoning. Consistently valid JSON. Occasionally over-extracts
+    low-confidence triples; the confidence > 0.5 filter catches most.
+  claude-3-5-sonnet: >
+    Highest triple precision. Evidence spans are accurate verbatim quotes.
+    Recommended for evaluation comparison runs.

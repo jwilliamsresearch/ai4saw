@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  quality:
+    name: Lint, type-check, and validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies (core + dev)
+        run: uv sync --extra dev
+
+      # ── Lint ────────────────────────────────────────────────────────────────
+      - name: Ruff lint
+        run: uv run ruff check ai4saw/ eval/
+
+      - name: Ruff format check
+        run: uv run ruff format --check ai4saw/ eval/
+
+      # ── Type checking ────────────────────────────────────────────────────────
+      - name: Mypy type check
+        run: uv run mypy ai4saw/ --ignore-missing-imports
+        continue-on-error: true   # mypy strict mode; warnings don't block CI
+
+      # ── Import smoke test ────────────────────────────────────────────────────
+      - name: Import smoke test
+        run: |
+          uv run python -c "
+          from ai4saw.core.config import settings
+          from ai4saw.core.models import (
+              Entity, NERResult, Relation, RelationResult,
+              EventResult, QAResponse, SilenceCandidate,
+              ResolvedEntity, KnowledgeGraph, KnowledgeGraphEdge,
+              ContradictionPair, AgentResponse,
+              DiscoveredDocument, NetworkAnalysis,
+              JudgeScore, JudgeReport,
+          )
+          from ai4saw.ingestion.loaders import load_document
+          from ai4saw.ingestion.chunker import chunk_documents
+          from ai4saw.ingestion.embedder import get_vector_store
+          from ai4saw.extraction.ner import extract_entities
+          from ai4saw.extraction.relations import extract_relations
+          from ai4saw.extraction.events import classify_event
+          from ai4saw.retrieval.qa import answer
+          from ai4saw.retrieval.graph_rag import build_knowledge_graph, graph_context_for_query
+          from ai4saw.retrieval.agent import multi_hop_answer
+          from ai4saw.synthesis.entity_resolution import resolve_entities
+          from ai4saw.synthesis.contradiction import detect_contradictions
+          from ai4saw.synthesis.network import build_command_network
+          from ai4saw.synthesis.export import export_all
+          from ai4saw.discovery.discovery import discover_for_entities
+          from ai4saw.mcp_server import mcp
+          print('All imports OK')
+          "
+
+      # ── Prompt YAML validation ────────────────────────────────────────────────
+      - name: Validate prompt YAML files
+        run: |
+          uv run python -c "
+          import yaml
+          from pathlib import Path
+          prompt_files = list(Path('prompts').glob('*.yaml'))
+          for p in prompt_files:
+              data = yaml.safe_load(p.read_text())
+              assert 'version' in data, f'{p}: missing version field'
+              assert 'system' in data, f'{p}: missing system field'
+              assert 'template' in data, f'{p}: missing template field'
+              print(f'  OK: {p.name} (v{data[\"version\"]})')
+          print(f'All {len(prompt_files)} prompt files valid')
+          "
+
+      # ── Testdata JSON validation ──────────────────────────────────────────────
+      - name: Validate testdata JSON files
+        run: |
+          uv run python -c "
+          import json
+          from pathlib import Path
+          for p in Path('eval/testdata').glob('*.json'):
+              data = json.loads(p.read_text())
+              assert isinstance(data, list) and len(data) > 0, f'{p}: empty or not a list'
+              print(f'  OK: {p.name} ({len(data)} items)')
+          "
+
+      # ── Notebook JSON validation ──────────────────────────────────────────────
+      - name: Validate notebooks are valid JSON
+        run: |
+          uv run python -c "
+          import json
+          from pathlib import Path
+          for p in Path('notebooks').glob('*.ipynb'):
+              json.loads(p.read_text())
+              print(f'  OK: {p.name}')
+          "
+
+  docs:
+    name: Build MkDocs documentation
+    runs-on: ubuntu-latest
+    needs: quality
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install docs dependencies
+        run: uv sync --extra docs
+
+      - name: Build docs (strict mode — fails on warnings)
+        run: uv run mkdocs build --strict

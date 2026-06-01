@@ -1,0 +1,14 @@
+{
+  "_comment": "Claude Desktop MCP configuration. Copy the 'ai4saw' block into:",
+  "_location": "~/Library/Application Support/Claude/claude_desktop_config.json  (macOS)",
+  "_location_win": "%APPDATA%\\Claude\\claude_desktop_config.json  (Windows)",
+
+  "mcpServers": {
+    "ai4saw": {
+      "command": "uv",
+      "args": ["run", "ai4saw-mcp"],
+      "cwd": "/ABSOLUTE/PATH/TO/ai4saw",
+      "_note": "Replace /ABSOLUTE/PATH/TO/ai4saw with the actual path to your project directory"
+    }
+  }
+}

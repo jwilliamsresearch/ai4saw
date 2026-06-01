@@ -1,0 +1,236 @@
+version: "1.0.0"
+task: "Named entity recognition for conflict and human rights documents"
+
+system: |
+  You are an expert analyst extracting named entities from conflict and human
+  rights documents. Your output must be valid JSON only — no prose, no
+  markdown fences, no explanation.
+
+  Extract entities of the following types only:
+    PERSON           — named individual (victim, perpetrator, witness, official)
+    ORG              — organisation, institution, armed group, governmental body
+    LOCATION         — country, city, region, administrative division
+    FACILITY         — specific site (detention centre, camp, building, checkpoint)
+    EVENT            — named historical event or operation
+    GROUP            — ethnic, religious, or demographic group
+    LEGAL_INSTRUMENT — treaty, law, resolution, convention
+
+  For each entity return:
+    text        — exact span as it appears in the text
+    label       — one of the types above
+    confidence  — float 0.0–1.0, your self-assessed confidence
+    span_start  — character offset in the input (null if uncertain)
+    span_end    — character offset in the input (null if uncertain)
+
+  Return format:
+  {"entities": [...]}
+
+examples:
+  - input: >
+      Witness testimony collected by the ICTY confirmed that Ratko Mladić
+      ordered the execution of prisoners held at the Kravica warehouse near
+      Bratunac in July 1995.
+    output:
+      entities:
+        - text: "ICTY"
+          label: "ORG"
+          confidence: 0.99
+          span_start: 42
+          span_end: 46
+        - text: "Ratko Mladić"
+          label: "PERSON"
+          confidence: 0.99
+          span_start: 61
+          span_end: 73
+        - text: "Kravica warehouse"
+          label: "FACILITY"
+          confidence: 0.97
+          span_start: 110
+          span_end: 127
+        - text: "Bratunac"
+          label: "LOCATION"
+          confidence: 0.98
+          span_start: 133
+          span_end: 141
+
+  - input: >
+      The UN Security Council Resolution 827 established the International
+      Criminal Tribunal for the former Yugoslavia to prosecute war crimes
+      committed during the conflict in the Balkans.
+    output:
+      entities:
+        - text: "UN Security Council Resolution 827"
+          label: "LEGAL_INSTRUMENT"
+          confidence: 0.99
+          span_start: 4
+          span_end: 38
+        - text: "International Criminal Tribunal for the former Yugoslavia"
+          label: "ORG"
+          confidence: 0.99
+          span_start: 50
+          span_end: 106
+        - text: "Balkans"
+          label: "LOCATION"
+          confidence: 0.95
+          span_start: 161
+          span_end: 168
+
+  - input: >
+      Sudanese Armed Forces and the Rapid Support Forces conducted a joint
+      operation in West Darfur, targeting the Masalit community in El Geneina
+      in April 2023.
+    output:
+      entities:
+        - text: "Sudanese Armed Forces"
+          label: "ORG"
+          confidence: 0.99
+          span_start: 0
+          span_end: 21
+        - text: "Rapid Support Forces"
+          label: "ORG"
+          confidence: 0.99
+          span_start: 30
+          span_end: 50
+        - text: "West Darfur"
+          label: "LOCATION"
+          confidence: 0.98
+          span_start: 84
+          span_end: 95
+        - text: "Masalit"
+          label: "GROUP"
+          confidence: 0.98
+          span_start: 110
+          span_end: 117
+        - text: "El Geneina"
+          label: "LOCATION"
+          confidence: 0.98
+          span_start: 128
+          span_end: 138
+
+  - input: >
+      According to the Human Rights Watch report, detainees at Manjača camp
+      were subjected to forced labour, including clearing minefields without
+      protective equipment.
+    output:
+      entities:
+        - text: "Human Rights Watch"
+          label: "ORG"
+          confidence: 0.99
+          span_start: 22
+          span_end: 40
+        - text: "Manjača camp"
+          label: "FACILITY"
+          confidence: 0.97
+          span_start: 56
+          span_end: 68
+
+  - input: >
+      The Rome Statute of the International Criminal Court defines crimes
+      against humanity to include enslavement and sexual slavery as
+      international criminal offences.
+    output:
+      entities:
+        - text: "Rome Statute"
+          label: "LEGAL_INSTRUMENT"
+          confidence: 0.99
+          span_start: 4
+          span_end: 16
+        - text: "International Criminal Court"
+          label: "ORG"
+          confidence: 0.99
+          span_start: 24
+          span_end: 51
+
+  - input: >
+      Operation Deliberate Force was the NATO air campaign conducted in
+      Bosnia and Herzegovina between August and September 1995, targeting
+      Bosnian Serb military infrastructure.
+    output:
+      entities:
+        - text: "Operation Deliberate Force"
+          label: "EVENT"
+          confidence: 0.97
+          span_start: 0
+          span_end: 25
+        - text: "NATO"
+          label: "ORG"
+          confidence: 0.99
+          span_start: 34
+          span_end: 38
+        - text: "Bosnia and Herzegovina"
+          label: "LOCATION"
+          confidence: 0.99
+          span_start: 64
+          span_end: 86
+        - text: "Bosnian Serb"
+          label: "GROUP"
+          confidence: 0.95
+          span_start: 138
+          span_end: 150
+
+  - input: >
+      Former camp commander Zdravko Tolimir was convicted by the ICTY in 2012
+      for genocide and crimes against humanity relating to the Srebrenica
+      massacre.
+    output:
+      entities:
+        - text: "Zdravko Tolimir"
+          label: "PERSON"
+          confidence: 0.99
+          span_start: 21
+          span_end: 36
+        - text: "ICTY"
+          label: "ORG"
+          confidence: 0.99
+          span_start: 58
+          span_end: 62
+        - text: "Srebrenica"
+          label: "LOCATION"
+          confidence: 0.99
+          span_start: 124
+          span_end: 134
+
+  - input: >
+      Rohingya refugees fleeing Myanmar crossed into Cox's Bazar, Bangladesh,
+      where UNHCR documented reports of trafficking by local brokers.
+    output:
+      entities:
+        - text: "Rohingya"
+          label: "GROUP"
+          confidence: 0.98
+          span_start: 0
+          span_end: 8
+        - text: "Myanmar"
+          label: "LOCATION"
+          confidence: 0.99
+          span_start: 24
+          span_end: 31
+        - text: "Cox's Bazar"
+          label: "LOCATION"
+          confidence: 0.98
+          span_start: 43
+          span_end: 54
+        - text: "Bangladesh"
+          label: "LOCATION"
+          confidence: 0.99
+          span_start: 56
+          span_end: 66
+        - text: "UNHCR"
+          label: "ORG"
+          confidence: 0.99
+          span_start: 74
+          span_end: 79
+
+template: "Input: {chunk_text}\nOutput:"
+
+model_notes:
+  mistral-7b: >
+    Reliably outputs valid JSON for 1–5 entities. With >8 entities per chunk,
+    occasionally truncates the final closing bracket. If parsing fails, the
+    retry prompt resolves this in >90% of cases.
+  llama3-8b: >
+    Tends to wrap JSON in markdown fences despite system prompt instruction.
+    The fence-stripping logic in ner.py handles this.
+  claude-3-5-sonnet: >
+    Consistent JSON output with accurate span offsets. Self-assessed confidence
+    is well-calibrated. Use for gold-standard eval runs.
