@@ -68,7 +68,7 @@ At query time with `--at YYYY-MM-DD`:
 
 | Edge | valid_from | valid_to | Included? |
 |---|---|---|---|
-| Commander Alpha� commanded Drina Corps | 1992-04-06 | null | ✓ (started before, still active) |
+| Commander Alpha commanded Drina Corps | 1992-04-06 | null | ✓ (started before, still active) |
 | Tolimir ordered execution | 1995-07-13 | null | ✗ (started after query date) |
 | Armed-Group-Beta in Location Beta | 2023-04-15 | null | ✗ (future) |
 | Karadžić directed operations | null | null | ✓ (no date info — assume always valid) |
@@ -107,12 +107,12 @@ The rendered graph context looks like:
 
 [ORG] Drina Corps
   Also known as: the Drina Corps, Armed-Group-Alpha Drina Corps
-  → commanded by → Radislav Commander Beta� (YYYY-MM-DD | Location Alpha) [conf=0.95]
-    Evidence: "Commander Beta� assumed command of the Drina Corps on 11 a specific date"
+  → commanded by → Radislav Commander Beta (YYYY-MM-DD | Location Alpha) [conf=0.95]
+    Evidence: "Commander Beta assumed command of the Drina Corps on 11 a specific date"
   → participated in → Location Alpha massacre (YYYY-MM-DD | Location Alpha) [conf=0.97]
     Evidence: "Drina Corps units executed prisoners at Kravica warehouse"
 
-[PERSON] Radislav Commander Beta�
+[PERSON] Radislav Commander Beta
   → commanded → Drina Corps (valid from YYYY-MM-DD)
   → convicted by → International Tribunal (2001)
 ```
