@@ -203,7 +203,7 @@ class TestAgentDiscoverState:
         assert "Dražen Erdemović" in fresh_agent_state.discovered_entities
 
     def test_executed_queries_tracked(self, fresh_agent_state):
-        fresh_agent_state.executed_queries.append("Erdemović plea 1996")
+        fresh_agent_state.executed_queries.add("Erdemović plea 1996")
         assert "Erdemović plea 1996" in fresh_agent_state.executed_queries
 
 

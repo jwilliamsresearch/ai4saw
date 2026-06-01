@@ -910,7 +910,7 @@ def discover_agent(
     """
     from ai4saw.agents.agent_discover import (
         load_agent_state, save_agent_state, run_agent_session,
-        get_agent_summary, _seed_frontier, AGENT_LOG_FILE,
+        get_agent_summary, top_novel_entities, _seed_frontier, AGENT_LOG_FILE,
     )
     from ai4saw.core.config import settings
 
@@ -939,10 +939,11 @@ def discover_agent(
             title="[bold cyan]Agent Discover State[/bold cyan]",
         ))
         if summary["top_novel_entities"]:
-            console.print("[bold]Novel entities discovered by LLM:[/bold]")
-            for e in summary["top_novel_entities"]:
-                info = state.discovered_entities.get(e, {})
-                console.print(f"  {e}  [dim](from {info.get('from_url', '?')[:60]})[/dim]")
+            t = Table(title="Top novel entities (by mention frequency)")
+            t.add_column("Entity"); t.add_column("Mentions", justify="right")
+            for entity, count in summary["top_novel_entities"]:
+                t.add_row(entity, str(count))
+            console.print(t)
         return
 
     # ── Log viewer ────────────────────────────────────────────────────────────
@@ -982,7 +983,7 @@ def discover_agent(
             console.print("[dim]Seeding frontier via web discovery…[/dim]")
             with console.status("[bold cyan]Searching (DDG · Wikipedia · CrossRef)…[/bold cyan]"):
                 new_count = _seed_frontier(
-                    list(state.initial_entities) + list(state.discovered_entities.keys())[:10],
+                    list(state.initial_entities) + top_novel_entities(state, n=10),
                     state,
                     per_entity_limit=per_entity_limit,
                     contact_email=contact_email,

@@ -125,9 +125,11 @@ class AgentDiscoverState(BaseModel):
 
     # Agent-specific
     initial_entities: list[str] = []
-    discovered_entities: dict[str, dict] = {}   # entity -> {from_url, timestamp}
-    query_queue: list[str] = []                  # LLM-generated queries pending execution
-    executed_queries: list[str] = []             # queries already run (dedup)
+    # entity -> {from_url, timestamp, mention_count}
+    # mention_count increments each session a doc references this entity
+    discovered_entities: dict[str, dict] = {}
+    query_queue: list[str] = []       # LLM-generated queries pending execution
+    executed_queries: set[str] = Field(default_factory=set)  # O(1) lookup
 
     # Counters
     session_count: int = 0
@@ -230,6 +232,35 @@ def _llm_reason(
         return None
 
 
+# ── Text sampling ─────────────────────────────────────────────────────────────
+
+def _sample_text(
+    raw_docs: list,
+    total_chars: int = 2_000,
+    slices: int = 5,
+) -> str:
+    """Sample evenly-spaced slices across all raw document pages.
+
+    Takes `slices` windows of `total_chars // slices` chars each, drawn from
+    evenly-distributed positions in the full document. This ensures the LLM
+    sees substantive content (witness names, unit numbers, event dates) rather
+    than only the cover page and table of contents.
+    """
+    if not raw_docs:
+        return ""
+    full_text = " ".join(d.page_content for d in raw_docs)
+    if len(full_text) <= total_chars:
+        return full_text
+
+    window = total_chars // slices
+    step = max(1, (len(full_text) - window) // (slices - 1)) if slices > 1 else len(full_text)
+    parts = []
+    for i in range(slices):
+        start = min(i * step, len(full_text) - window)
+        parts.append(full_text[start : start + window])
+    return " … ".join(parts)
+
+
 # ── Ingest and capture text ────────────────────────────────────────────────────
 
 def _ingest_and_capture(
@@ -281,8 +312,11 @@ def _ingest_and_capture(
         logger.warning(f"load_document failed for {doc.url}: {exc}")
         return 0, filename, ""
 
-    # Capture text excerpt before chunking (for LLM reasoning)
-    text_excerpt = " ".join(d.page_content for d in raw_docs[:3])[:2_000]
+    # Sample from across the document — not just the first pages.
+    # A 50-page ICTY judgment has its cover/ToC in the first 2000 chars;
+    # witness names and unit numbers are pages 8-40. Take 5 evenly-spaced
+    # slices of 400 chars each so the LLM reasons on substantive content.
+    text_excerpt = _sample_text(raw_docs, total_chars=2_000, slices=5)
 
     chunks = chunk_documents(raw_docs)
     embed_and_store(chunks)
@@ -325,7 +359,7 @@ def _execute_novel_query(
                 date=None, relevance_score=relevance,
                 trigger_entity=trigger, snippet=snippet,
             ))
-        state.executed_queries.append(query)
+        state.executed_queries.add(query)
         time.sleep(DDG_DELAY)
     except Exception as exc:
         logger.warning(f"Novel query DDG failed ({query!r}): {exc}")
@@ -396,8 +430,8 @@ def run_agent_session(
     # Collect (doc, text_excerpt) for reasoning
     ingested_docs: list[tuple[DiscoveredDocument, str]] = []
 
+    # ── Phase 1: drain frontier (HTTP client open only while fetching) ────────
     with httpx.Client(timeout=20.0, follow_redirects=True) as client:
-        # ── Phase 1: drain frontier ───────────────────────────────────────────
         for item in batch:
             if item.url in state.visited_urls or _is_registered(item.url):
                 _record_visit(state, item.url, item.trigger_entity, 0)  # type: ignore[arg-type]
@@ -426,7 +460,6 @@ def run_agent_session(
                 if text:
                     ingested_docs.append((doc, text))
 
-            # Follow links from HTML pages
             if not _is_pdf(item.url):
                 html = _fetch_html(item.url, client)
                 if html:
@@ -440,57 +473,57 @@ def run_agent_session(
                             link, state, item.depth + 1,  # type: ignore[arg-type]
                         )
                         _add_to_frontier(state, link, priority, item.trigger_entity, item.source, item.depth + 1)  # type: ignore[arg-type]
+    # HTTP client closed — LLM calls happen without holding the connection pool
 
-        # ── Phase 2: LLM reasoning ────────────────────────────────────────────
-        reasoning_results: list[DiscoveryReasoning] = []
+    # ── Phase 2: LLM reasoning ────────────────────────────────────────────────
+    reasoning_results: list[DiscoveryReasoning] = []
+    candidates = sorted(ingested_docs, key=lambda x: x[0].relevance_score, reverse=True)
+    candidates = candidates[:max_reasoning]
+    all_known = list(state.initial_entities) + list(state.discovered_entities.keys())
 
-        # Pick highest-relevance docs to reason on
-        candidates = sorted(ingested_docs, key=lambda x: x[0].relevance_score, reverse=True)
-        candidates = candidates[:max_reasoning]
+    for doc, text in candidates:
+        reasoning = _llm_reason(
+            text=text, doc=doc,
+            initial_entities=state.initial_entities,
+            geography=geography, known_entities=all_known,
+        )
+        if not reasoning:
+            continue
 
-        all_known = list(state.initial_entities) + list(state.discovered_entities.keys())
+        reasoning_results.append(reasoning)
+        _log_reasoning(reasoning)
+        state.docs_reasoned += 1
 
-        for doc, text in candidates:
-            reasoning = _llm_reason(
-                text=text,
-                doc=doc,
-                initial_entities=state.initial_entities,
-                geography=geography,
-                known_entities=all_known,
-            )
-            if not reasoning:
+        for entity in reasoning.novel_entities:
+            if entity in state.initial_entities:
                 continue
+            if entity in state.discovered_entities:
+                state.discovered_entities[entity]["mention_count"] = (
+                    state.discovered_entities[entity].get("mention_count", 1) + 1
+                )
+            else:
+                state.discovered_entities[entity] = {
+                    "from_url": doc.url,
+                    "timestamp": _now(),
+                    "mention_count": 1,
+                }
+                logger.info(f"[AgentDiscover] Novel entity: {entity!r}")
 
-            reasoning_results.append(reasoning)
-            _log_reasoning(reasoning)
-            state.docs_reasoned += 1
+        for query in reasoning.generated_queries:
+            if query not in state.executed_queries and query not in state.query_queue:
+                state.query_queue.append(query)
 
-            # Register novel entities
-            for entity in reasoning.novel_entities:
-                if entity not in state.discovered_entities and entity not in state.initial_entities:
-                    state.discovered_entities[entity] = {
-                        "from_url": doc.url,
-                        "timestamp": _now(),
-                    }
-                    logger.info(f"[AgentDiscover] Novel entity discovered: {entity!r}")
+    # ── Phase 3: execute novel queries (new HTTP client) ──────────────────────
+    queries_this_session = state.query_queue[:5]
+    state.query_queue = state.query_queue[5:]
+    all_entities = state.initial_entities + list(state.discovered_entities.keys())
 
-            # Queue novel queries
-            for query in reasoning.generated_queries:
-                if query not in state.executed_queries and query not in state.query_queue:
-                    state.query_queue.append(query)
-
-        # ── Phase 3: execute novel LLM-generated queries ──────────────────────
-        queries_this_session = state.query_queue[:5]
-        state.query_queue = state.query_queue[5:]
-
-        all_entities = state.initial_entities + list(state.discovered_entities.keys())
-
-        for query in queries_this_session:
-            logger.info(f"[AgentDiscover] Executing LLM query: {query!r}")
-            new_docs = _execute_novel_query(query, all_entities, state)
-            for new_doc in new_docs:
-                priority = _frontier_priority(new_doc.relevance_score, new_doc.url, state)  # type: ignore[arg-type]
-                _add_to_frontier(state, new_doc.url, priority, new_doc.trigger_entity, new_doc.source)
+    for query in queries_this_session:
+        logger.info(f"[AgentDiscover] Executing LLM query: {query!r}")
+        new_docs = _execute_novel_query(query, all_entities, state)
+        for new_doc in new_docs:
+            priority = _frontier_priority(new_doc.relevance_score, new_doc.url, state)  # type: ignore[arg-type]
+            _add_to_frontier(state, new_doc.url, priority, new_doc.trigger_entity, new_doc.source)
 
     _sort_frontier(state)
     if len(state.frontier) > FRONTIER_MAX:
@@ -507,6 +540,12 @@ def run_agent_session(
 # ── Public helpers ─────────────────────────────────────────────────────────────
 
 def get_agent_summary(state: AgentDiscoverState) -> dict:
+    # Sort novel entities by mention_count so the most-corroborated leads surface first
+    ranked_entities = sorted(
+        state.discovered_entities.items(),
+        key=lambda kv: kv[1].get("mention_count", 1),
+        reverse=True,
+    )
     return {
         "sessions": state.session_count,
         "urls_visited": len(state.visited_urls),
@@ -517,6 +556,17 @@ def get_agent_summary(state: AgentDiscoverState) -> dict:
         "novel_entities": len(state.discovered_entities),
         "queries_queued": len(state.query_queue),
         "queries_executed": len(state.executed_queries),
-        "top_novel_entities": list(state.discovered_entities.keys())[:10],
+        # Top entities by how often they've been mentioned across documents
+        "top_novel_entities": [(e, d.get("mention_count", 1)) for e, d in ranked_entities[:10]],
         "last_run": state.last_run,
     }
+
+
+def top_novel_entities(state: AgentDiscoverState, n: int = 10) -> list[str]:
+    """Return discovered entity names sorted by mention frequency — for re-seeding."""
+    ranked = sorted(
+        state.discovered_entities.items(),
+        key=lambda kv: kv[1].get("mention_count", 1),
+        reverse=True,
+    )
+    return [e for e, _ in ranked[:n]]
