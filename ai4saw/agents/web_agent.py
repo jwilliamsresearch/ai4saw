@@ -31,9 +31,11 @@ from __future__ import annotations
 import json
 import re
 import time
+import warnings
+warnings.filterwarnings("ignore", message=".*duckduckgo_search.*renamed.*ddgs.*", category=RuntimeWarning)
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -50,7 +52,7 @@ STATE_FILE        = Path("output/web_agent_state.json")
 CROSSREF_BASE     = "https://api.crossref.org/works"
 WP_SEARCH_API     = "https://en.wikipedia.org/w/api.php"
 REQUEST_TIMEOUT   = 15.0
-DDG_DELAY         = 3.5   # between DDG queries — stay polite
+DDG_DELAY         = 3.0   # between DDG queries
 CROSSREF_DELAY    = 1.0
 WP_DELAY          = 1.0
 FRONTIER_MAX      = 5_000  # cap frontier size to avoid unbounded growth
@@ -258,9 +260,12 @@ def _run_ddg_template(
 ) -> list[DiscoveredDocument]:
     """Run one DuckDuckGo query template, update query_stats, return docs."""
     try:
-        from duckduckgo_search import DDGS
+        try:
+            from ddgs import DDGS
+        except ImportError:
+            from duckduckgo_search import DDGS  # type: ignore[no-redef]
     except ImportError:
-        logger.warning("duckduckgo-search not installed — run: uv sync")
+        logger.warning("ddgs not installed — run: pip install ddgs")
         return []
 
     if key not in state.query_stats:
@@ -502,6 +507,8 @@ def web_discover(
     sources_csv: str = "corpus/sources.csv",
     contact_email: str = "",
     state: Optional[WebAgentState] = None,
+    on_event: Optional[Callable[[str, str], None]] = None,
+    use_ddg: bool = True,
 ) -> tuple[DiscoveryResult, WebAgentState]:
     """Run one discovery pass: DDG + Wikipedia + CrossRef, add results to frontier.
 
@@ -516,22 +523,32 @@ def web_discover(
     all_docs: list[DiscoveredDocument] = []
     query_count = 0
 
-    with httpx.Client(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
+    with httpx.Client(
+        timeout=REQUEST_TIMEOUT,
+        follow_redirects=True,
+        headers={"User-Agent": "ai4saw/0.1 (research; https://github.com/ai4saw) httpx"},
+    ) as client:
         for entity in entities:
             logger.info(f"[WebAgent] Discovering: {entity!r}")
+            if use_ddg:
+                if on_event: on_event("info", f"DDG → {entity}")
+                ddg_docs = _search_duckduckgo(entity, state, per_entity_limit)
+                all_docs.extend(ddg_docs)
+                query_count += len(_DDG_TEMPLATES)
+                if on_event: on_event("info", f"DDG → {entity}: {len(ddg_docs)} results")
 
-            ddg_docs = _search_duckduckgo(entity, state, per_entity_limit)
-            all_docs.extend(ddg_docs)
-            query_count += len(_DDG_TEMPLATES)
-
+            if on_event: on_event("info", f"Wikipedia → {entity}")
             wp_docs = _search_wikipedia(entity, client, state)
             all_docs.extend(wp_docs)
             query_count += 1
+            if on_event: on_event("info", f"Wikipedia → {entity}: {len(wp_docs)} links")
 
+            if on_event: on_event("info", f"CrossRef → {entity}")
             cr_docs = _search_crossref(entity, client, state, limit=per_entity_limit, contact_email=contact_email)
             all_docs.extend(cr_docs)
             query_count += 1
             time.sleep(CROSSREF_DELAY)
+            if on_event: on_event("info", f"CrossRef → {entity}: {len(cr_docs)} results")
 
     deduped = _dedup_and_rank(all_docs, known | set(state.visited_urls.keys()))
 

@@ -56,7 +56,7 @@ dependencies = [
     "tqdm>=4.66.0",
     "loguru>=0.7.0",
     "numpy>=1.26.0",
-    "duckduckgo-search>=6.0.0",
+    "ddgs>=0.1.0",
 ]
 
 [project.optional-dependencies]

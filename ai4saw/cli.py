@@ -1168,5 +1168,489 @@ def info() -> None:
     console.print(status_table)
 
 
+# ── Research (one-command loop) ───────────────────────────────────────────────
+
+def _parse_research_query(query: str) -> dict:
+    """Use the LLM to extract entities, geography, and topics from a natural language query."""
+    from langchain_core.messages import HumanMessage, SystemMessage
+    from ai4saw.core.providers import get_llm
+
+    prompt = f"""Extract research parameters from this natural language query.
+
+Query: "{query}"
+
+Output ONLY valid JSON — no text outside the braces:
+{{
+  "entities": ["entity1", "entity2"],
+  "geography": "region/country name",
+  "topics": ["topic1", "topic2"]
+}}
+
+Examples:
+  "events in Sarajevo 1992-1995 war crimes" →
+    {{"entities": ["Sarajevo", "Bosnian War"], "geography": "Bosnia", "topics": ["war crimes", "siege"]}}
+  "Srebrenica massacre Mladic ICTY judgment" →
+    {{"entities": ["Srebrenica", "Ratko Mladic", "ICTY"], "geography": "Bosnia", "topics": ["genocide", "tribunal"]}}
+"""
+    try:
+        llm = get_llm()
+        response = llm.invoke([
+            SystemMessage(content="You are a research assistant. Extract structured parameters from research queries."),
+            HumanMessage(content=prompt),
+        ])
+        raw = response.content.strip()
+        if raw.startswith("```"):
+            parts = raw.split("```")
+            raw = parts[1] if len(parts) > 1 else raw
+            if raw.startswith("json"):
+                raw = raw[4:]
+        return json.loads(raw.strip())
+    except Exception as exc:
+        console.print(f"[yellow]Query parsing failed ({exc}), using query text as single entity.[/yellow]")
+        return {"entities": [query], "geography": "unknown", "topics": []}
+
+
+@app.command("research")
+def research(
+    query: Optional[str] = typer.Argument(None, help="Research query — omit to be prompted"),
+    interval: int = typer.Option(0, help="Seconds between sessions (0 = continuous)"),
+    frontier_batch: int = typer.Option(20, help="Frontier URLs to visit per session"),
+    max_reasoning: int = typer.Option(8, help="Max docs to run LLM reasoning on per session"),
+    seed_every: int = typer.Option(6, help="Re-seed frontier every N sessions"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
+) -> None:
+    """One-command research loop — describe what you want, the system finds it."""
+    import os, sys
+    from loguru import logger as _logger
+    from rich.live import Live
+    from rich.console import Console as _Console
+    from ai4saw.ui.startup import (
+        make_processing_layout, prompt_query,
+        show_splash_1, show_splash_2,
+    )
+    from ai4saw.agents.agent_discover import (
+        AgentDiscoverState, DiscoveryReasoning,
+        get_agent_summary, load_agent_state, run_agent_session,
+        save_agent_state, top_novel_entities, _seed_frontier,
+        _llm_generate_seed_queries, prune_frontier,
+    )
+    from ai4saw.ui.dashboard import DashboardState, make_renderable
+
+    # Kill loguru — events surface via on_event callbacks instead.
+    _logger.remove()
+
+    # ── Splash 1 (always) ─────────────────────────────────────────────────────
+    show_splash_1(console)
+
+    # ── Query prompt (if not provided on command line) ────────────────────────
+    if not query:
+        query = prompt_query(console)
+
+    # ── Splash 2 (always) ─────────────────────────────────────────────────────
+    show_splash_2(console)
+
+    # ── Initialising Research — full screen ───────────────────────────────────
+    entities: list[str] = []
+    geography: str = "unknown"
+    topics: list[str] = []
+    steps: list[tuple[str, str]] = [("dim", "  Asking LLM to extract entities and geography…")]
+
+    with Live(make_processing_layout(query, steps), screen=True, console=console, refresh_per_second=4) as proc_live:
+        try:
+            parsed = _parse_research_query(query)
+            entities = parsed.get("entities") or [query]
+            geography = parsed.get("geography") or "unknown"
+            topics = parsed.get("topics") or []
+            steps = [
+                ("green", f"  ✓  Entities:  {', '.join(entities)}"),
+                ("green", f"  ✓  Geography: {geography}"),
+            ]
+            if topics:
+                steps.append(("green", f"  ✓  Topics:    {', '.join(topics)}"))
+            steps.append(("dim", "  ✓  Loading agent state…"))
+            steps.append(("dim", "  Starting research loop…"))
+        except Exception as exc:
+            steps = [("red", f"  ✗  Query parsing failed: {exc}"),
+                     ("dim", "  Using query text as-is…")]
+            entities = [query]
+            geography = "unknown"
+        proc_live.update(make_processing_layout(query, steps))
+        time.sleep(2.0)
+
+    # ── Load or init agent state ──────────────────────────────────────────────
+    agent_state = load_agent_state()
+    if not agent_state.initial_entities:
+        agent_state.initial_entities = entities
+    else:
+        for e in entities:
+            if e not in agent_state.initial_entities:
+                agent_state.initial_entities.append(e)
+
+    # ── Dashboard state — pre-populate from saved agent state ────────────────
+    dash = DashboardState(
+        query=query,
+        geography=geography,
+        entities=entities,
+    )
+    # Restore prior session data immediately so UI isn't empty on restart
+    _prior = get_agent_summary(agent_state)
+    dash.frontier_size    = _prior["frontier_size"]
+    dash.novel_entities   = _prior["novel_entities"]
+    dash.queries_queued   = _prior["queries_queued"]
+    dash.queries_executed = _prior["queries_executed"]
+    dash.top_entities     = _prior["top_novel_entities"]
+    dash.docs_ingested    = agent_state.total_docs_ingested
+    dash.docs_skipped     = agent_state.total_docs_skipped
+    dash.chunks_added     = agent_state.total_chunks_added
+    dash.session          = agent_state.session_count
+    # Replay last N reasoning log entries into the feed
+    from ai4saw.agents.agent_discover import AGENT_LOG_FILE
+    if AGENT_LOG_FILE.exists():
+        try:
+            _log_lines = AGENT_LOG_FILE.read_text(encoding="utf-8").strip().splitlines()
+            for _line in _log_lines[-5:]:
+                _entry = json.loads(_line)
+                dash.push("reason", f"[prior] {_entry.get('source_title','')[:55]}")
+                for _q in _entry.get("generated_queries", [])[:2]:
+                    dash.push("query", _q[:80])
+            # Pre-fill reasoning panel with last entry
+            if _log_lines:
+                _last = json.loads(_log_lines[-1])
+                dash.set_reasoning(
+                    doc=_last.get("source_title", ""),
+                    entities=_last.get("novel_entities", []),
+                    queries=_last.get("generated_queries", []),
+                    why=_last.get("reasoning", ""),
+                )
+        except Exception:
+            pass
+
+    contact_email = ""
+    try:
+        from ai4saw.core.config import settings as _s
+        contact_email = getattr(_s, "contact_email", "")
+    except Exception:
+        pass
+
+    session_number = 0
+
+    # Only suppress stderr now — splash and processing screens need it for errors.
+    _old_stderr = sys.stderr
+    sys.stderr = open(os.devnull, "w")
+
+    try:
+        with Live(make_renderable(dash), refresh_per_second=8, screen=True) as live:
+
+            def _event(etype: str, msg: str) -> None:
+                dash.push(etype, msg)
+                dash.current_action = msg if etype == "info" else dash.current_action
+                if etype == "ingest":
+                    dash.docs_ingested += 1
+                elif etype == "skip":
+                    dash.docs_skipped += 1
+                elif etype == "query":
+                    dash.recent_queries.append(msg)
+                    if len(dash.recent_queries) > 50:
+                        dash.recent_queries = dash.recent_queries[-50:]
+                live.update(make_renderable(dash))
+
+            def _on_reasoning(r: object) -> None:
+                dash.set_reasoning(
+                    doc=getattr(r, "source_title", ""),
+                    entities=getattr(r, "novel_entities", []),
+                    queries=getattr(r, "generated_queries", []),
+                    why=getattr(r, "reasoning", ""),
+                )
+                live.update(make_renderable(dash))
+
+            def _narrate() -> None:
+                dash.current_action = "Generating research summary…"
+                live.update(make_renderable(dash))
+                try:
+                    from datetime import datetime as _dt
+                    dash.narrator_text = _llm_narrate(
+                        query=query,
+                        geography=geography,
+                        docs_ingested=dash.docs_ingested,
+                        docs_skipped=dash.docs_skipped,
+                        top_entities=dash.top_entities,
+                        last_reasoning_doc=dash.last_doc,
+                        last_reasoning_why=dash.last_why,
+                        last_queries=dash.last_queries,
+                        novel_entities=dash.last_entities,
+                    )
+                    dash.narrator_updated_at = _dt.now().strftime("%H:%M:%S")
+                except Exception:
+                    pass
+                live.update(make_renderable(dash))
+
+            # Generate opening summary immediately on start
+            _narrate()
+
+            import threading as _threading
+            _error_log = Path("output/research_errors.log")
+            _error_log.parent.mkdir(parents=True, exist_ok=True)
+            _error_log.write_text("", encoding="utf-8")  # clear on each run
+            _spinners = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
+
+            # ── LLM generates targeted seed queries before session 1 ──────────
+            # Fixed DDG templates run once for initial discovery; after that the
+            # LLM controls what to search for based on research context.
+            if agent_state.session_count == 0 and not agent_state.query_queue:
+                dash.current_action = "LLM generating initial targeted seed queries…"
+                live.update(make_renderable(dash))
+                try:
+                    _initial_seeds = _llm_generate_seed_queries(
+                        agent_state, geography, query, n=10
+                    )
+                    for _sq in _initial_seeds:
+                        agent_state.query_queue.append(_sq)
+                    dash.push("info", f"LLM seeded {len(_initial_seeds)} targeted queries")
+                    live.update(make_renderable(dash))
+                except Exception:
+                    pass
+
+            while True:
+                session_number += 1
+                dash.session = agent_state.session_count + 1
+
+                # Summarise what we know at the START of each session
+                try:
+                    _narrate()
+                except Exception:
+                    pass
+
+                dash.current_action = f"Session {dash.session} — seeding frontier…"
+                live.update(make_renderable(dash))
+
+                frontier_low = len(agent_state.frontier) < 5
+                _drifting = bool(dash.drift_warning)
+                needs_seed = frontier_low or (agent_state.session_count % seed_every == 0) or _drifting
+
+                if needs_seed:
+                    seed_reason = (
+                        "drift — LLM taking over seeding" if _drifting
+                        else ("frontier empty" if frontier_low else f"every {seed_every} sessions")
+                    )
+                    dash.push("info", f"Re-seeding ({seed_reason})…")
+
+                    # On drift: prune junk frontier + LLM generates targeted queries
+                    if _drifting:
+                        _anchors = list(entities) + [geography]
+                        pruned = prune_frontier(agent_state, _anchors, keep_top=200)
+                        if pruned:
+                            dash.push("info", f"Pruned {pruned} off-topic frontier items")
+                        dash.current_action = "Drift detected — LLM generating targeted seed queries…"
+                        live.update(make_renderable(dash))
+                        llm_seeds = _llm_generate_seed_queries(
+                            agent_state, geography, query, n=8
+                        )
+                        if llm_seeds:
+                            for sq in llm_seeds:
+                                if sq not in agent_state.executed_queries and sq not in agent_state.query_queue:
+                                    agent_state.query_queue.append(sq)
+                            dash.push("info", f"LLM generated {len(llm_seeds)} targeted seed queries")
+                            dash.drift_warning = ""  # cleared — LLM has taken control
+                        live.update(make_renderable(dash))
+
+                    _use_apis = True  # always run OpenAlex/IA/arXiv/GDELT/S2 on seed
+                    # Fixed DDG templates only run on session 0 as a bootstrap.
+                    # From session 1 onwards, LLM-generated queries are the only DDG source.
+                    _skip_fixed_seed = agent_state.session_count > 0
+                    # After session 0, use top discovered entities for Wikipedia/CrossRef
+                    if agent_state.session_count > 0 and agent_state.discovered_entities:
+                        seed_entities = (
+                            list(agent_state.initial_entities) +
+                            top_novel_entities(agent_state, n=5)
+                        )
+                    else:
+                        seed_entities = list(agent_state.initial_entities)
+                    if _skip_fixed_seed:
+                        seed_label = "LLM queries · Wikipedia · CrossRef…"
+                    else:
+                        seed_label = "DDG · Wikipedia · CrossRef…"
+                    dash.current_action = f"Seeding frontier: {seed_label}"
+                    live.update(make_renderable(dash))
+                    _seed_done = _threading.Event()
+                    _seed_error: list[Exception] = []
+
+                    def _run_seed() -> None:
+                        try:
+                            from ai4saw.agents.agent_discover import (
+                                _execute_novel_query, _frontier_priority, _add_to_frontier,
+                            )
+                            # Use LLM queries as the search terms for ALL sources:
+                            # DDG, Wikipedia, CrossRef, OpenAlex, Internet Archive, GDELT.
+                            llm_qs = list(agent_state.query_queue)
+                            agent_state.query_queue = []
+                            if llm_qs:
+                                _seed_frontier(
+                                    llm_qs,          # LLM queries as search terms, not entity names
+                                    agent_state,
+                                    contact_email=contact_email,
+                                    on_event=_event,
+                                    use_api_sources=_use_apis,
+                                    use_ddg=True,
+                                )
+                        except Exception as _e:
+                            _seed_error.append(_e)
+                            import traceback as _tb
+                            _error_log.write_text(_tb.format_exc(), encoding="utf-8")
+                        finally:
+                            _seed_done.set()
+
+                    _t = _threading.Thread(target=_run_seed, daemon=True)
+                    _t.start()
+
+                    # Keep UI alive while seeding runs in background
+                    _spin_i = 0
+                    while not _seed_done.wait(timeout=0.12):
+                        dash.current_action = f"{_spinners[_spin_i % len(_spinners)]} Seeding frontier…"
+                        live.update(make_renderable(dash))
+                        _spin_i += 1
+
+                    if _seed_error:
+                        dash.push("error", f"Seed failed: {str(_seed_error[0])[:60]}")
+                    dash.frontier_size = len(agent_state.frontier)
+                    dash.push("info", f"Frontier seeded: {len(agent_state.frontier)} URLs")
+                    live.update(make_renderable(dash))
+
+                _sess_done = _threading.Event()
+                _sess_result: list = []   # [docs_in, chunks_in, reasonings] on success
+                _sess_error: list[Exception] = []
+
+                def _run_session() -> None:
+                    try:
+                        result = run_agent_session(
+                            state=agent_state,
+                            geography=geography,
+                            frontier_batch=frontier_batch,
+                            max_reasoning=max_reasoning,
+                            on_event=_event,
+                            on_reasoning=_on_reasoning,
+                        )
+                        _sess_result.append(result)
+                    except Exception as _e:
+                        _sess_error.append(_e)
+                        import traceback as _tb
+                        _error_log.write_text(_tb.format_exc(), encoding="utf-8")
+                    finally:
+                        _sess_done.set()
+
+                dash.current_action = "Draining frontier…"
+                live.update(make_renderable(dash))
+                _threading.Thread(target=_run_session, daemon=True).start()
+
+                _spin_i = 0
+                while not _sess_done.wait(timeout=0.12):
+                    dash.current_action = f"{_spinners[_spin_i % len(_spinners)]} Draining frontier…"
+                    live.update(make_renderable(dash))
+                    _spin_i += 1
+
+                if _sess_error:
+                    dash.push("error", f"Session error (see output/research_errors.log): {str(_sess_error[0])[:60]}")
+                    dash.current_action = f"Session {dash.session} failed — retrying next cycle"
+                    live.update(make_renderable(dash))
+                    time.sleep(5)
+                else:
+                    docs_in, chunks_in, reasonings = _sess_result[0]
+
+                    for item in getattr(agent_state, "visited_urls", {}).values():
+                        src = item.get("source", "web") if isinstance(item, dict) else "web"
+                        dash.record_source(src)
+
+                    dash.docs_ingested += docs_in
+                    dash.chunks_added += chunks_in
+                    dash.docs_skipped = agent_state.total_docs_skipped
+                    summary = get_agent_summary(agent_state)
+                    dash.frontier_size    = summary["frontier_size"]
+                    dash.novel_entities   = summary["novel_entities"]
+                    dash.queries_queued   = summary["queries_queued"]
+                    dash.queries_executed = summary["queries_executed"]
+                    dash.top_entities     = summary["top_novel_entities"]
+                    dash.session_history.append((dash.session, docs_in, dash.docs_skipped))
+
+                    # Drift detection — warn if last 3 sessions were >80% skips
+                    if len(dash.session_history) >= 3:
+                        recent = dash.session_history[-3:]
+                        skip_pct = sum(sk for _, _, sk in recent) / max(1, sum(i + sk for _, i, sk in recent))
+                        if skip_pct > 0.8:
+                            dash.drift_warning = (
+                                f"Topic drift detected — {int(skip_pct*100)}% of recent documents "
+                                f"rejected as off-topic. Consider refining the query."
+                            )
+                        else:
+                            dash.drift_warning = ""
+                    dash.current_action   = f"Session {dash.session} complete — {docs_in} ingested, {len(reasonings)} reasoned"
+                    live.update(make_renderable(dash))
+                    save_agent_state(agent_state)
+
+                    try:
+                        _narrate()
+                    except Exception:
+                        pass
+
+                if interval > 0:
+                    dash.current_action = f"Sleeping {interval}s…"
+                    live.update(make_renderable(dash))
+                    time.sleep(interval)
+
+    finally:
+        sys.stderr.close()
+        sys.stderr = _old_stderr
+
+
+def _llm_narrate(
+    query: str,
+    geography: str,
+    docs_ingested: int,
+    docs_skipped: int,
+    top_entities: list,
+    last_reasoning_doc: str,
+    last_reasoning_why: str,
+    last_queries: list,
+    novel_entities: list,
+) -> str:
+    """Ask the LLM to narrate current research progress in plain English."""
+    from langchain_core.messages import HumanMessage, SystemMessage
+    from ai4saw.core.providers import get_llm
+
+    entity_list = ", ".join(f"{e} ({n})" for e, n in top_entities[:8]) if top_entities else "none yet"
+    query_list  = "\n".join(f"  - {q}" for q in last_queries[:3]) if last_queries else "  none yet"
+    novel_list  = ", ".join(novel_entities[:6]) if novel_entities else "none"
+
+    if docs_ingested == 0:
+        prompt = f"""You are a research intelligence analyst. A researcher has just started an investigation.
+
+Research query: "{query}"
+Geography: {geography}
+
+Write 2–3 sentences describing what this research is about, what kinds of sources and evidence will be \
+sought, and what the most important questions to answer are. Be specific about the subject matter. \
+Write in present tense as if briefing a colleague at the start of an investigation. No preamble."""
+    else:
+        prompt = f"""You are helping a researcher study: "{query}" (geography: {geography}).
+
+Current progress:
+- Documents ingested: {docs_ingested}  |  Skipped as irrelevant: {docs_skipped}
+- Most-mentioned entities: {entity_list}
+- Last document reasoned on: {last_reasoning_doc or "none yet"}
+- Why it was significant: {last_reasoning_why or "n/a"}
+- Novel entities just discovered: {novel_list}
+- Search queries now queued:
+{query_list}
+
+Write 2–3 sentences summarising what has been found so far and what the most promising leads are.
+Be specific — name actual entities, documents, and why they matter.
+Write in present tense as if giving a live briefing. No preamble."""
+
+    llm = get_llm()
+    response = llm.invoke([
+        SystemMessage(content="You are a research intelligence analyst giving a concise live briefing."),
+        HumanMessage(content=prompt),
+    ])
+    return response.content.strip()
+
+
 if __name__ == "__main__":
     app()

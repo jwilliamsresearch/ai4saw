@@ -77,3 +77,4 @@ htmlcov/
 # ── Type stubs ────────────────────────────────────────────────────────────────
 *.pyi
 py.typed
+corpus/sources.csv

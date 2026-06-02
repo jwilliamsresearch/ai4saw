@@ -45,6 +45,10 @@ def get_vector_store() -> Chroma:
     )
 
 
+EMBED_BATCH_SIZE = 1   # Ollama processes batch input as combined context — embed one at a time
+MAX_CHUNK_CHARS  = 6000  # nomic-embed-text context ~8192 tokens; truncate to stay safe
+
+
 def embed_and_store(chunks: list[Document]) -> Chroma:
     """Embed chunks and upsert them into ChromaDB.
 
@@ -56,11 +60,16 @@ def embed_and_store(chunks: list[Document]) -> Chroma:
         return get_vector_store()
 
     ids = [_chunk_id(chunk) for chunk in chunks]
-    texts = [chunk.page_content for chunk in chunks]
+    texts = [chunk.page_content[:MAX_CHUNK_CHARS] for chunk in chunks]
     metadatas = [_serialise_meta(chunk.metadata) for chunk in chunks]
 
     store = get_vector_store()
-    store.add_texts(texts=texts, metadatas=metadatas, ids=ids)
+    for i in range(0, len(chunks), EMBED_BATCH_SIZE):
+        store.add_texts(
+            texts=texts[i:i + EMBED_BATCH_SIZE],
+            metadatas=metadatas[i:i + EMBED_BATCH_SIZE],
+            ids=ids[i:i + EMBED_BATCH_SIZE],
+        )
 
     logger.info(
         f"Upserted {len(chunks)} chunk(s) into ChromaDB "

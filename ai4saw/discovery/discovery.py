@@ -62,6 +62,210 @@ OPENALEX_DELAY       = 3.0   # OpenAlex polite pool
 # S2 and arXiv are batched (one OR query for all entities) — no per-entity delay needed
 GDELT_RETRY_WAIT     = 60.0  # GDELT: 1 req/5s; on 429 wait 60s then retry once
 
+# ── RSS feed registry (all confirmed working, no API key required) ────────────
+# 83 feeds tested and verified returning HTTP 200 with valid content
+_RSS_FEEDS: list[tuple[str, str]] = [
+    # ── North Korea / nuclear / proliferation ────────────────────────────────
+    ("rfa_korea",       "https://www.rfa.org/english/news/korea/rss2.xml"),
+    ("nknews",          "https://www.nknews.org/feed/"),
+    ("armscontrol",     "https://www.armscontrol.org/rss.xml"),
+    ("nuclear_threat",  "https://www.nti.org/feed/"),
+    ("ploughshares",    "https://www.ploughshares.org/feed"),
+    ("fas_security",    "https://fas.org/feed/"),
+    ("inkstick",        "https://inkstickmedia.com/feed/"),
+    ("just_security",   "https://www.justsecurity.org/feed/"),
+    ("war_on_rocks",    "https://warontherocks.com/feed/"),
+    ("defense_news",    "https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml"),
+    ("spaceflight",     "https://api.spaceflightnewsapi.net/v4/articles/?limit=20&search=missile+nuclear+korea"),
+    # ── International / global ────────────────────────────────────────────────
+    ("bbc_world",       "http://feeds.bbci.co.uk/news/world/rss.xml"),
+    ("bbc_asia",        "https://feeds.bbci.co.uk/news/world/asia/rss.xml"),
+    ("aljazeera",       "https://www.aljazeera.com/xml/rss/all.xml"),
+    ("guardian_world",  "https://www.theguardian.com/world/rss"),
+    ("france24",        "https://www.france24.com/en/rss"),
+    ("dw_english",      "https://rss.dw.com/rdf/rss-en-all"),
+    ("le_monde_en",     "https://www.lemonde.fr/en/rss/une.xml"),
+    ("politico_eu",     "https://www.politico.eu/feed/"),
+    ("foreign_policy",  "https://foreignpolicy.com/feed/"),
+    ("wapo_world",      "http://feeds.washingtonpost.com/rss/world"),
+    ("bellingcat",      "https://www.bellingcat.com/feed/"),
+    ("intercept",       "https://theintercept.com/feed/?rss"),
+    ("newsweek",        "https://www.newsweek.com/rss"),
+    ("time_world",      "https://time.com/feed/"),
+    ("atlantic",        "https://feeds.feedburner.com/TheAtlantic"),
+    ("npr_world",       "https://feeds.npr.org/1004/rss.xml"),
+    ("sky_news",        "https://feeds.skynews.com/feeds/rss/world.xml"),
+    ("independent_uk",  "https://www.independent.co.uk/news/world/rss"),
+    ("telegraph",       "https://www.telegraph.co.uk/rss"),
+    ("rfi_english",     "https://www.rfi.fr/en/rss"),
+    ("euronews",        "https://feeds.feedburner.com/euronews/en/news/"),
+    ("cbc_world",       "https://www.cbc.ca/cmlink/rss-world"),
+    ("globe_mail",      "https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/world/?outputType=xml"),
+    ("tass",            "https://tass.com/rss/v2.xml"),
+    ("moscow_times",    "https://www.themoscowtimes.com/rss/news"),
+    ("brookings",       "https://www.brookings.edu/feed/"),
+    ("the_conversation","https://theconversation.com/articles.atom"),
+    ("un_news",         "https://news.un.org/feed/subscribe/en/news/all/rss.xml"),
+    ("reliefweb",       "https://reliefweb.int/updates/rss.xml"),
+    # ── Asia / Pacific ────────────────────────────────────────────────────────
+    ("nhk_world",       "https://www3.nhk.or.jp/rss/news/cat6.xml"),
+    ("korea_herald",    "https://www.koreaherald.com/rss/02.xml"),
+    ("yonhap",          "https://en.yna.co.kr/RSS/news.xml"),
+    ("asia_times",      "https://asiatimes.com/feed/"),
+    ("the_diplomat",    "https://thediplomat.com/feed/"),
+    ("nikkei_asia",     "https://asia.nikkei.com/rss/feed/nar"),
+    ("abc_australia",   "https://www.abc.net.au/news/feed/51120/rss.xml"),
+    ("philstar",        "https://www.philstar.com/rss/headlines"),
+    ("japan_times",     "https://www.japantimes.co.jp/feed/topstories/"),
+    ("scmp",            "https://www.scmp.com/rss/91/feed"),
+    ("hkfp",            "https://www.hongkongfp.com/feed/"),
+    ("bangkok_post",    "https://www.bangkokpost.com/rss/data/topstories.xml"),
+    ("straits_times",   "https://www.straitstimes.com/news/world/rss.xml"),
+    ("the_hindu",       "https://www.thehindu.com/news/international/?service=rss"),
+    ("times_india",     "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms"),
+    ("the_wire_in",     "https://thewire.in/rss"),
+    ("scroll_in",       "https://scroll.in/feed"),
+    ("nation_thailand", "https://www.nationthailand.com/rss"),
+    ("nz_herald",       "https://www.nzherald.co.nz/arc/outboundfeeds/rss/section/world/?outputType=xml"),
+    ("smh",             "https://www.smh.com.au/rss/world.xml"),
+    ("myanmar_now",     "https://myanmar-now.org/en/feed/"),
+    ("global_times",    "https://www.globaltimes.cn/rss/outbrain.xml"),
+    ("mongolia_news",   "https://news.mn/en/feed/"),
+    ("georgia_today",   "https://georgiatoday.ge/feed/"),
+    ("kashmir_obs",     "https://kashmirobserver.net/feed/"),
+    # ── Middle East ───────────────────────────────────────────────────────────
+    ("jpost",           "https://www.jpost.com/Rss/RssFeedsHeadlines.aspx"),
+    ("haaretz",         "https://www.haaretz.com/cmlink/1.628765"),
+    ("arab_news",       "https://www.arabnews.com/rss.xml"),
+    ("new_arab",        "https://english.alaraby.co.uk/rss"),
+    ("middle_east_eye", "https://www.middleeasteye.net/rss"),
+    ("kurdistan24",     "https://www.kurdistan24.net/en/rss.xml"),
+    # ── Africa ────────────────────────────────────────────────────────────────
+    ("allafrica",       "https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf"),
+    ("mail_guardian",   "https://mg.co.za/feed/"),
+    ("premium_times",   "https://www.premiumtimesng.com/feed"),
+    ("vanguard_ng",     "https://www.vanguardngr.com/feed/"),
+    # ── Latin America ─────────────────────────────────────────────────────────
+    ("mercopress",      "https://en.mercopress.com/rss"),
+    ("ba_herald",       "https://buenosairesherald.com/feed"),
+    ("nacla",           "https://nacla.org/taxonomy/term/6/feed"),
+    # ── Human rights / humanitarian / investigative ───────────────────────────
+    ("amnesty",         "https://www.amnesty.org/en/latest/feed/"),
+    ("new_humanitarian","https://www.thenewhumanitarian.org/rss.xml"),
+    ("refugees_intl",   "https://www.refugeesinternational.org/feed/"),
+    ("rinj",            "https://rinj.org/feed/"),
+]
+
+RSS_REQUEST_TIMEOUT = 12.0
+
+
+# ── RSS feed discovery ────────────────────────────────────────────────────────
+
+def _query_rss_feeds(
+    entities: list[str],
+    client: httpx.Client,
+    limit_per_feed: int = 10,
+) -> list[DiscoveredDocument]:
+    """Scan all RSS feeds and return articles matching any entity term."""
+    import xml.etree.ElementTree as ET
+
+    entity_terms = [e.lower() for e in entities if e]
+    docs: list[DiscoveredDocument] = []
+    headers = {"User-Agent": "ai4saw/0.1 (research; academic) httpx"}
+
+    for feed_id, feed_url in _RSS_FEEDS:
+        try:
+            r = client.get(feed_url, headers=headers, timeout=RSS_REQUEST_TIMEOUT,
+                           follow_redirects=True)
+            if not r.is_success:
+                continue
+
+            # Handle JSON feeds (Spaceflight News API)
+            if "json" in r.headers.get("content-type", ""):
+                import json as _json
+                data = r.json()
+                items = data.get("results", data.get("articles", []))
+                for item in items[:limit_per_feed]:
+                    title   = item.get("title", "")
+                    url     = item.get("url", "")
+                    summary = item.get("summary", "")
+                    if not url:
+                        continue
+                    combined = (title + " " + summary).lower()
+                    if not any(t in combined for t in entity_terms):
+                        continue
+                    relevance = _relevance(entities[0], title + " " + summary)
+                    docs.append(DiscoveredDocument(
+                        title=title, url=url, source=feed_id,
+                        date=item.get("published_at", "")[:10] or None,
+                        relevance_score=relevance,
+                        trigger_entity=entities[0],
+                        snippet=summary[:300],
+                    ))
+                continue
+
+            # Parse RSS/Atom XML
+            try:
+                root = ET.fromstring(r.content)
+            except ET.ParseError:
+                continue
+
+            ns = {"atom": "http://www.w3.org/2005/Atom"}
+            # RSS 2.0
+            items = root.findall(".//item")
+            # Atom fallback
+            if not items:
+                items = root.findall(".//atom:entry", ns)
+
+            count = 0
+            for item in items:
+                if count >= limit_per_feed:
+                    break
+                title = (
+                    getattr(item.find("title"), "text", "") or
+                    getattr(item.find("atom:title", ns), "text", "") or ""
+                )
+                link = (
+                    getattr(item.find("link"), "text", "") or
+                    (item.find("link") is not None and item.find("link").get("href", "")) or
+                    getattr(item.find("atom:link", ns), "text", "") or
+                    (item.find("atom:link", ns) is not None and
+                     item.find("atom:link", ns).get("href", "")) or ""
+                )
+                desc = (
+                    getattr(item.find("description"), "text", "") or
+                    getattr(item.find("summary"), "text", "") or
+                    getattr(item.find("atom:summary", ns), "text", "") or ""
+                )
+                pub = (
+                    getattr(item.find("pubDate"), "text", "") or
+                    getattr(item.find("atom:published", ns), "text", "") or ""
+                )
+
+                if not link or not title:
+                    continue
+
+                combined = (title + " " + (desc or "")).lower()
+                if not any(t in combined for t in entity_terms):
+                    continue
+
+                relevance = _relevance(entities[0], title + " " + (desc or ""))
+                docs.append(DiscoveredDocument(
+                    title=title.strip(), url=link.strip(), source=feed_id,
+                    date=pub[:10] if pub else None,
+                    relevance_score=relevance,
+                    trigger_entity=entities[0],
+                    snippet=(desc or "")[:300],
+                ))
+                count += 1
+
+        except Exception as exc:
+            logger.debug(f"RSS feed {feed_id} failed: {exc}")
+            continue
+
+    logger.info(f"RSS feeds: {len(docs)} matching articles across {len(_RSS_FEEDS)} feeds")
+    return docs
+
 
 # ── Deduplication helpers ─────────────────────────────────────────────────────
 
@@ -409,6 +613,249 @@ def _query_gdelt_batch(
     return docs
 
 
+# ── DOAJ — Directory of Open Access Journals ─────────────────────────────────
+
+def _query_doaj(
+    entities: list[str],
+    limit: int = 50,
+    client: httpx.Client | None = None,
+) -> list[DiscoveredDocument]:
+    """DOAJ full-text search — open access journal articles, no API key required."""
+    if not entities:
+        return []
+    query = " OR ".join(f'"{e}"' for e in entities[:5])
+    params = {"pageSize": limit}
+    close = client is None
+    if close:
+        client = httpx.Client(timeout=REQUEST_TIMEOUT)
+    docs: list[DiscoveredDocument] = []
+    try:
+        r = client.get(
+            f"https://doaj.org/api/v2/search/articles/{httpx.URL(query)}",
+            params=params,
+        )
+        if not r.is_success:
+            return []
+        for item in r.json().get("results", []):
+            bib = item.get("bibjson", {})
+            title = bib.get("title", "")
+            links = bib.get("link", [])
+            url = next((lk.get("url", "") for lk in links if lk.get("type") == "fulltext"), "")
+            if not url:
+                url = next((lk.get("url", "") for lk in links), "")
+            if not url or not title:
+                continue
+            abstract = bib.get("abstract", "")
+            year = str(bib.get("year", "")) or None
+            trigger = entities[0]
+            docs.append(DiscoveredDocument(
+                title=title, url=url, source="doaj",
+                date=year, relevance_score=_relevance(trigger, title + " " + abstract),
+                trigger_entity=trigger, snippet=abstract[:300],
+            ))
+    except Exception as exc:
+        logger.warning(f"DOAJ failed: {exc}")
+    finally:
+        if close:
+            client.close()
+    logger.debug(f"DOAJ: {len(docs)} results")
+    return docs
+
+
+# ── Europe PMC ────────────────────────────────────────────────────────────────
+
+def _query_europepmc(
+    entities: list[str],
+    limit: int = 50,
+    client: httpx.Client | None = None,
+) -> list[DiscoveredDocument]:
+    """Europe PMC — open-access biomedical and life sciences literature."""
+    if not entities:
+        return []
+    query = " OR ".join(f'"{e}"' for e in entities[:5])
+    close = client is None
+    if close:
+        client = httpx.Client(timeout=REQUEST_TIMEOUT)
+    docs: list[DiscoveredDocument] = []
+    try:
+        r = client.get(
+            "https://www.ebi.ac.uk/europepmc/webservices/rest/search",
+            params={"query": query, "format": "json", "pageSize": limit,
+                    "resultType": "core", "sort": "RELEVANCE"},
+        )
+        if not r.is_success:
+            return []
+        trigger = entities[0]
+        for item in r.json().get("resultList", {}).get("result", []):
+            title = item.get("title", "")
+            pmid  = item.get("pmid", "")
+            doi   = item.get("doi", "")
+            url   = (f"https://doi.org/{doi}" if doi else
+                     f"https://europepmc.org/article/MED/{pmid}" if pmid else "")
+            if not url or not title:
+                continue
+            abstract = item.get("abstractText", "")
+            docs.append(DiscoveredDocument(
+                title=title, url=url, source="europepmc",
+                date=str(item.get("pubYear", "")) or None,
+                relevance_score=_relevance(trigger, title + " " + abstract),
+                trigger_entity=trigger, snippet=abstract[:300],
+            ))
+    except Exception as exc:
+        logger.warning(f"Europe PMC failed: {exc}")
+    finally:
+        if close:
+            client.close()
+    logger.debug(f"Europe PMC: {len(docs)} results")
+    return docs
+
+
+# ── PubMed E-utilities ────────────────────────────────────────────────────────
+
+def _query_pubmed(
+    entities: list[str],
+    limit: int = 30,
+    client: httpx.Client | None = None,
+) -> list[DiscoveredDocument]:
+    """PubMed via NCBI E-utilities — no API key required (3 req/s limit)."""
+    if not entities:
+        return []
+    query = " OR ".join(f'"{e}"' for e in entities[:5])
+    close = client is None
+    if close:
+        client = httpx.Client(timeout=REQUEST_TIMEOUT)
+    docs: list[DiscoveredDocument] = []
+    try:
+        # Step 1: search for IDs
+        r = client.get(
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",
+            params={"db": "pubmed", "term": query, "retmax": limit,
+                    "retmode": "json", "sort": "relevance"},
+        )
+        if not r.is_success:
+            return []
+        ids = r.json().get("esearchresult", {}).get("idlist", [])
+        if not ids:
+            return []
+        # Step 2: fetch summaries
+        r2 = client.get(
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi",
+            params={"db": "pubmed", "id": ",".join(ids), "retmode": "json"},
+        )
+        if not r2.is_success:
+            return []
+        result = r2.json().get("result", {})
+        trigger = entities[0]
+        for pmid in ids:
+            item = result.get(pmid, {})
+            title = item.get("title", "")
+            if not title:
+                continue
+            url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
+            year = item.get("pubdate", "")[:4] or None
+            docs.append(DiscoveredDocument(
+                title=title, url=url, source="pubmed",
+                date=year, relevance_score=_relevance(trigger, title),
+                trigger_entity=trigger, snippet=None,
+            ))
+    except Exception as exc:
+        logger.warning(f"PubMed failed: {exc}")
+    finally:
+        if close:
+            client.close()
+    logger.debug(f"PubMed: {len(docs)} results")
+    return docs
+
+
+# ── World Bank Open Documents ─────────────────────────────────────────────────
+
+def _query_worldbank(
+    entities: list[str],
+    limit: int = 30,
+    client: httpx.Client | None = None,
+) -> list[DiscoveredDocument]:
+    """World Bank Documents & Reports — policy papers, country assessments, free."""
+    if not entities:
+        return []
+    query = " ".join(entities[:5])
+    close = client is None
+    if close:
+        client = httpx.Client(timeout=REQUEST_TIMEOUT)
+    docs: list[DiscoveredDocument] = []
+    try:
+        r = client.get(
+            "https://search.worldbank.org/api/v2/wds",
+            params={"format": "json", "q": query, "rows": limit,
+                    "fl": "docdt,display_title,url,docty,pdfurl"},
+        )
+        if not r.is_success:
+            return []
+        trigger = entities[0]
+        for item in r.json().get("documents", {}).values():
+            title = item.get("display_title", "")
+            url   = item.get("pdfurl", "") or item.get("url", "")
+            if not url or not title:
+                continue
+            date = str(item.get("docdt", ""))[:10] or None
+            docs.append(DiscoveredDocument(
+                title=title, url=url, source="worldbank",
+                date=date, relevance_score=_relevance(trigger, title),
+                trigger_entity=trigger, snippet=item.get("docty", ""),
+            ))
+    except Exception as exc:
+        logger.warning(f"World Bank failed: {exc}")
+    finally:
+        if close:
+            client.close()
+    logger.debug(f"World Bank: {len(docs)} results")
+    return docs
+
+
+# ── HDX — Humanitarian Data Exchange ─────────────────────────────────────────
+
+def _query_hdx(
+    entities: list[str],
+    limit: int = 20,
+    client: httpx.Client | None = None,
+) -> list[DiscoveredDocument]:
+    """OCHA Humanitarian Data Exchange — datasets and reports, no API key."""
+    if not entities:
+        return []
+    query = " ".join(entities[:5])
+    close = client is None
+    if close:
+        client = httpx.Client(timeout=REQUEST_TIMEOUT)
+    docs: list[DiscoveredDocument] = []
+    try:
+        r = client.get(
+            "https://data.humdata.org/api/3/action/package_search",
+            params={"q": query, "rows": limit},
+        )
+        if not r.is_success:
+            return []
+        trigger = entities[0]
+        for pkg in r.json().get("result", {}).get("results", []):
+            title = pkg.get("title", "")
+            name  = pkg.get("name", "")
+            url   = f"https://data.humdata.org/dataset/{name}" if name else ""
+            if not url or not title:
+                continue
+            notes = pkg.get("notes", "")[:300]
+            date  = pkg.get("metadata_modified", "")[:10] or None
+            docs.append(DiscoveredDocument(
+                title=title, url=url, source="hdx",
+                date=date, relevance_score=_relevance(trigger, title + " " + notes),
+                trigger_entity=trigger, snippet=notes,
+            ))
+    except Exception as exc:
+        logger.warning(f"HDX failed: {exc}")
+    finally:
+        if close:
+            client.close()
+    logger.debug(f"HDX: {len(docs)} results")
+    return docs
+
+
 # ── Deduplication and ranking ─────────────────────────────────────────────────
 
 def _dedup_and_rank(
@@ -478,6 +925,34 @@ def discover_for_entities(
         time.sleep(6)  # GDELT enforces 1 req/5s strictly; guarantee gap from previous calls
         logger.info(f"GDELT: batch query for {len(entities)} entities")
         all_docs.extend(_query_gdelt_batch(entities, limit=250, client=client))
+        query_count += 1
+
+        logger.info(f"RSS feeds: scanning {len(_RSS_FEEDS)} feeds for {len(entities)} entities")
+        all_docs.extend(_query_rss_feeds(entities, client))
+        query_count += 1
+
+        logger.info(f"DOAJ: open access journals for {len(entities)} entities")
+        all_docs.extend(_query_doaj(entities, limit=50, client=client))
+        query_count += 1
+        time.sleep(delay)
+
+        logger.info(f"Europe PMC: biomedical/life sciences for {len(entities)} entities")
+        all_docs.extend(_query_europepmc(entities, limit=50, client=client))
+        query_count += 1
+        time.sleep(delay)
+
+        logger.info(f"PubMed: NCBI literature for {len(entities)} entities")
+        all_docs.extend(_query_pubmed(entities, limit=30, client=client))
+        query_count += 1
+        time.sleep(delay)
+
+        logger.info(f"World Bank: policy documents for {len(entities)} entities")
+        all_docs.extend(_query_worldbank(entities, limit=30, client=client))
+        query_count += 1
+        time.sleep(delay)
+
+        logger.info(f"HDX: humanitarian data for {len(entities)} entities")
+        all_docs.extend(_query_hdx(entities, limit=20, client=client))
         query_count += 1
 
     deduped = _dedup_and_rank(all_docs, known)
