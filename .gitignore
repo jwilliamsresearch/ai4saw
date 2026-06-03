@@ -25,15 +25,11 @@ ENV/
 # .env.example is committed — it documents required variables without values
 
 # ── Generated data ────────────────────────────────────────────────────────────
-# ChromaDB vector store (large, regenerable from corpus)
-data/chroma/
+# All runtime data (ChromaDB, project files, corpora, graphs) — regenerable
+data/
 
 # Extraction results (regenerable)
 output/
-
-# Knowledge graph and entity registry (regenerable)
-data/knowledge_graph.json
-data/entity_registry.json
 
 # Logs
 logs/
@@ -77,4 +73,3 @@ htmlcov/
 # ── Type stubs ────────────────────────────────────────────────────────────────
 *.pyi
 py.typed
-corpus/sources.csv

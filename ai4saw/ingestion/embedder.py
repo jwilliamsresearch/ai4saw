@@ -45,35 +45,32 @@ def get_vector_store() -> Chroma:
     )
 
 
-EMBED_BATCH_SIZE = 1   # Ollama processes batch input as combined context — embed one at a time
-MAX_CHUNK_CHARS  = 6000  # nomic-embed-text context ~8192 tokens; truncate to stay safe
+# 2000 chars ≈ 500 ASCII tokens — safe even for CJK text which tokenises 2-3× denser
+MAX_CHUNK_CHARS = 2000
 
 
 def embed_and_store(chunks: list[Document]) -> Chroma:
     """Embed chunks and upsert them into ChromaDB.
 
-    Uses deterministic IDs so re-running ingestion is idempotent —
-    duplicate chunks are overwritten rather than accumulated.
+    Uses deterministic IDs so re-running ingestion is idempotent.
+    Bad chunks (context overflow) are skipped individually so one
+    problematic chunk never aborts the whole document.
     """
     if not chunks:
-        logger.warning("embed_and_store called with empty chunk list — nothing to do.")
         return get_vector_store()
 
-    ids = [_chunk_id(chunk) for chunk in chunks]
-    texts = [chunk.page_content[:MAX_CHUNK_CHARS] for chunk in chunks]
-    metadatas = [_serialise_meta(chunk.metadata) for chunk in chunks]
-
     store = get_vector_store()
-    for i in range(0, len(chunks), EMBED_BATCH_SIZE):
-        store.add_texts(
-            texts=texts[i:i + EMBED_BATCH_SIZE],
-            metadatas=metadatas[i:i + EMBED_BATCH_SIZE],
-            ids=ids[i:i + EMBED_BATCH_SIZE],
-        )
+    stored = 0
+    for chunk in chunks:
+        try:
+            store.add_texts(
+                texts=[chunk.page_content[:MAX_CHUNK_CHARS]],
+                metadatas=[_serialise_meta(chunk.metadata)],
+                ids=[_chunk_id(chunk)],
+            )
+            stored += 1
+        except Exception as exc:
+            logger.debug(f"Skipping chunk (embed failed): {exc}")
 
-    logger.info(
-        f"Upserted {len(chunks)} chunk(s) into ChromaDB "
-        f"(collection={settings.chroma_collection!r}, "
-        f"dir={settings.chroma_persist_dir})"
-    )
+    logger.info(f"Upserted {stored}/{len(chunks)} chunk(s) into ChromaDB")
     return store

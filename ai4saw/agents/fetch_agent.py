@@ -47,11 +47,14 @@ from pydantic import BaseModel
 from ai4saw.core.config import settings
 from ai4saw.discovery.discovery import discover_for_entities, discover_for_silences
 from ai4saw.core.models import DiscoveredDocument
+from ai4saw.core.project import get_corpus_dir, get_sources_csv
 
 
 REQUEST_TIMEOUT = 20.0
-SOURCES_CSV = Path("corpus/sources.csv")
-CORPUS_DIR = Path("corpus")
+# These are resolved dynamically at call time so they respect the active project.
+# Use get_corpus_dir() / get_sources_csv() instead of these constants in new code.
+SOURCES_CSV = Path("corpus/sources.csv")   # legacy — kept for external imports
+CORPUS_DIR  = Path("corpus")               # legacy — kept for external imports
 _SOURCES_HEADER = ["filename", "source_url", "date_accessed", "licence", "geography", "notes"]
 
 
@@ -98,9 +101,10 @@ def _licence_for_source(source: str) -> str:
 
 
 def _is_registered(url: str) -> bool:
-    if not SOURCES_CSV.exists():
+    csv_path = get_sources_csv()
+    if not csv_path.exists():
         return False
-    with open(SOURCES_CSV, encoding="utf-8") as f:
+    with open(csv_path, encoding="utf-8") as f:
         return any(row.get("source_url") == url for row in csv.DictReader(f))
 
 
@@ -112,11 +116,12 @@ def _register_source(
     title: str,
     source: str,
 ) -> None:
-    """Append a row to corpus/sources.csv."""
-    SOURCES_CSV.parent.mkdir(parents=True, exist_ok=True)
-    write_header = not SOURCES_CSV.exists() or SOURCES_CSV.stat().st_size == 0
+    """Append a row to the project (or legacy) sources.csv."""
+    csv_path = get_sources_csv()
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    write_header = not csv_path.exists() or csv_path.stat().st_size == 0
 
-    with open(SOURCES_CSV, "a", newline="", encoding="utf-8") as f:
+    with open(csv_path, "a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=_SOURCES_HEADER)
         if write_header:
             writer.writeheader()
@@ -170,7 +175,7 @@ def _ingest_document(
     filename = _safe_filename(doc.url, doc.title, doc.source)
 
     if is_pdf:
-        dest = CORPUS_DIR / filename
+        dest = get_corpus_dir() / filename
         if not _download_pdf(doc.url, dest, client):
             return 0, filename
         source_arg: str = str(dest)

@@ -14,6 +14,18 @@ from ai4saw.core.config import settings
 
 
 @lru_cache(maxsize=1)
+def get_prescreen_llm() -> BaseChatModel:
+    """Return a fast small model for yes/no prescreen decisions.
+    Falls back to default_model if prescreen_model is not configured.
+    """
+    model = settings.prescreen_model or settings.default_model
+    if settings.provider == "ollama":
+        from langchain_ollama import ChatOllama
+        return ChatOllama(model=model, base_url=settings.ollama_base_url, temperature=0.0)
+    return get_llm()
+
+
+@lru_cache(maxsize=1)
 def get_llm() -> BaseChatModel:
     """Return a configured chat model for the active provider."""
     match settings.provider:

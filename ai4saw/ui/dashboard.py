@@ -31,6 +31,7 @@ class DashboardState:
     novel_entities: int = 0
     queries_queued: int = 0
     queries_executed: int = 0
+    urls_visited: int = 0      # total URLs ever attempted (visited_urls dict)
 
     start_time: datetime = field(default_factory=datetime.now)
     current_action: str = "Initialising…"
@@ -50,11 +51,27 @@ class DashboardState:
     narrator_text: str = ""
     narrator_updated_at: str = ""
 
+    # LLM-set research goals (persisted in agent state)
+    goals: list[str] = field(default_factory=list)
+    goals_updated_at: str = ""
+
     # Recent LLM-generated queries executed
     recent_queries: list[str] = field(default_factory=list)
 
+    # Live model status
+    prescreen_status: str = "idle"     # qwen2.5:0.5b
+    reason_status: str = "idle"        # qwen2.5:7b
+    embed_status: str = "idle"         # nomic-embed-text
+    prescreen_calls: int = 0
+    reason_calls: int = 0
+    embed_calls: int = 0
+
     # Drift warning (set when consecutive skip rate is too high)
     drift_warning: str = ""
+
+    # Search graph live URL (shown in header when a project is active)
+    graph_url: str = ""
+    project_name: str = ""
 
     def push(self, event_type: str, message: str) -> None:
         self.feed.append((event_type, message))
@@ -114,6 +131,12 @@ def _header(state: DashboardState) -> Panel:
     info.append(f"{_elapsed(state.start_time)}   ", style="white")
     info.append("Relevance: ", style="dim")
     info.append(f"{pct}\n", style="white")
+    if state.project_name:
+        info.append("Project: ", style="dim")
+        info.append(f"{state.project_name}   ", style="bold magenta")
+    if state.graph_url:
+        info.append("Graph: ", style="dim")
+        info.append(f"{state.graph_url}   ", style="bold cyan underline")
     info.append("▸ ", style="dim")
     info.append(state.current_action, style="dim")
 
@@ -221,21 +244,66 @@ def _reasoning(state: DashboardState) -> Panel:
 
 
 def _entity_chart(state: DashboardState) -> Panel:
-    if not state.top_entities:
-        body = "\n" * 3 + "  [dim]No entities discovered yet[/dim]"
-    else:
-        max_c = max(n for _, n in state.top_entities) or 1
-        lines = []
-        for entity, count in state.top_entities[:10]:
-            bar = _bar(count, max_c)
-            label = entity[:16].ljust(16)
-            lines.append(f"[cyan]{label}[/cyan] [magenta]{bar}[/magenta] [dim]{count}[/dim]")
-        # Pad so height is consistent
-        while len(lines) < 10:
-            lines.append("")
-        body = "\n".join(lines)
+    lines: list[str] = []
 
-    return Panel(body, title="[bold]Entity Network[/bold]", border_style="magenta", padding=(0, 1))
+    if state.top_entities:
+        # Novel entities discovered beyond seeds — show bar chart + mention count
+        max_c = max(n for _, n in state.top_entities) or 1
+        for entity, count in state.top_entities[:9]:
+            bar = _bar(count, max_c, width=12)
+            label = entity[:18].ljust(18)
+            lines.append(f"[cyan]{label}[/cyan] [magenta]{bar}[/magenta] [dim]{count}×[/dim]")
+    else:
+        # No novel entities yet — show seed entities as placeholders so panel isn't empty
+        lines.append("[dim]Seed entities (waiting for novel discoveries):[/dim]")
+        lines.append("")
+        for e in state.entities[:6]:
+            lines.append(f"  [dim]◇[/dim] [white]{e}[/white]")
+        lines.append("")
+        lines.append(f"  [dim]LLM has reasoned {state.reasoning_count}×[/dim]")
+        lines.append(f"  [dim]{state.docs_ingested} docs ingested — entities appear[/dim]")
+        lines.append(f"  [dim]once a relevant doc is reasoned on[/dim]")
+
+    # Recent entities from last reasoning cycle (shows what LLM just found, even if not novel)
+    if state.last_entities:
+        lines.append("")
+        lines.append("[dim]Last reasoning:[/dim]")
+        for e in state.last_entities[:3]:
+            lines.append(f"  [bold cyan]•[/bold cyan] {e}")
+
+    # Pad to consistent height
+    while len(lines) < 11:
+        lines.append("")
+    body = "\n".join(lines[:11])
+
+    subtitle = (
+        f"[dim]{len(state.top_entities)} novel · {state.novel_entities} total[/dim]"
+        if state.top_entities else "[dim]waiting for first novel entity[/dim]"
+    )
+    return Panel(
+        body,
+        title="[bold]Entity Network[/bold]",
+        subtitle=subtitle,
+        border_style="magenta",
+        padding=(0, 1),
+    )
+
+
+def _goals(state: DashboardState) -> Panel:
+    if not state.goals:
+        body = "\n\n  [dim]Goals will appear after the first research summary…[/dim]"
+    else:
+        lines = []
+        for i, goal in enumerate(state.goals, 1):
+            lines.append(f"  [cyan]{i}.[/cyan] {goal}")
+        ts = f"\n\n  [dim]Updated {state.goals_updated_at}[/dim]" if state.goals_updated_at else ""
+        body = "\n".join(lines) + ts
+    return Panel(
+        body,
+        title="[bold yellow]Research Goals[/bold yellow]",
+        border_style="yellow",
+        padding=(0, 1),
+    )
 
 
 def _sources(state: DashboardState) -> Panel:
@@ -314,18 +382,46 @@ def _relevance_trend(state: DashboardState) -> Panel:
     )
 
 
+def _model_indicator(status: str, calls: int, name: str, colour: str) -> str:
+    dot = f"[{colour}]●[/{colour}]" if status == "running" else "[dim]○[/dim]"
+    label = f"[{colour}]{name}[/{colour}]" if status == "running" else f"[dim]{name}[/dim]"
+    return f"{dot} {label} [dim]×{calls}[/dim]"
+
+
 def _stats(state: DashboardState) -> Panel:
-    return Panel(
+    total_discovered = state.urls_visited + state.frontier_size
+    pct = f"{int(state.urls_visited / total_discovered * 100)}%" if total_discovered else "0%"
+
+    stats_line = (
         f"[green]✓ {state.docs_ingested} ingested[/green]   "
         f"[red]✗ {state.docs_skipped} skipped[/red]   "
         f"[yellow]⬡ {state.chunks_added} chunks[/yellow]   "
-        f"[blue]⋯ {state.frontier_size} frontier[/blue]   "
+        f"[white]Visited: {state.urls_visited:,}/{total_discovered:,} ({pct})[/white]   "
+        f"[blue]⋯ {state.frontier_size:,} pending[/blue]   "
         f"[magenta]✦ {state.novel_entities} entities[/magenta]   "
-        f"[cyan]⟳ {state.queries_queued} queued[/cyan]   "
-        f"[white]✉ {state.queries_executed} executed[/white]",
-        border_style="dim",
-        padding=(0, 0),
+        f"[cyan]⟳ {state.queries_queued} queued[/cyan]"
     )
+
+    model_line = (
+        f"  {_model_indicator(state.prescreen_status, state.prescreen_calls, 'prescreen:0.5b', 'yellow')}   "
+        f"{_model_indicator(state.reason_status,    state.reason_calls,    'reason:7b',      'cyan')}   "
+        f"{_model_indicator(state.embed_status,     state.embed_calls,     'embed:nomic',    'blue')}"
+    )
+
+    # Project + graph URL line (only shown when a project is active)
+    project_line = ""
+    if state.project_name or state.graph_url:
+        parts = []
+        if state.project_name:
+            parts.append(f"[bold magenta]◈ project:[/bold magenta] [magenta]{state.project_name}[/magenta]")
+        if state.graph_url:
+            parts.append(f"[bold cyan]⬡ graph:[/bold cyan] [cyan underline]{state.graph_url}[/cyan underline]")
+        else:
+            parts.append("[dim]no graph server (use --project <slug> to enable)[/dim]")
+        project_line = "\n  " + "   ".join(parts)
+
+    body = stats_line + "\n" + model_line + project_line
+    return Panel(body, border_style="dim", padding=(0, 0))
 
 
 # ── Layout builder ────────────────────────────────────────────────────────────
@@ -338,7 +434,7 @@ def make_renderable(state: DashboardState) -> Layout:
         Layout(name="narrator", size=6),
         Layout(name="middle",   ratio=1),
         Layout(name="bottom",   ratio=1),
-        Layout(name="stats",    size=3),
+        Layout(name="stats",    size=4),
     )
 
     layout["middle"].split_row(
@@ -348,9 +444,9 @@ def make_renderable(state: DashboardState) -> Layout:
 
     layout["bottom"].split_row(
         Layout(name="chart",    ratio=1),
-        Layout(name="sources",  ratio=1),
         Layout(name="queries",  ratio=1),
         Layout(name="relevance",ratio=1),
+        Layout(name="goals",    ratio=1),
     )
 
     layout["header"].update(_header(state))
@@ -358,9 +454,9 @@ def make_renderable(state: DashboardState) -> Layout:
     layout["feed"].update(_feed(state))
     layout["reasoning"].update(_reasoning(state))
     layout["chart"].update(_entity_chart(state))
-    layout["sources"].update(_sources(state))
     layout["queries"].update(_query_pipeline(state))
     layout["relevance"].update(_relevance_trend(state))
+    layout["goals"].update(_goals(state))
     layout["stats"].update(_stats(state))
 
     return layout

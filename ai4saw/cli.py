@@ -32,8 +32,47 @@ app = typer.Typer(
     name="ai4saw",
     help="AI for Slavery and War — open intelligence extraction pipeline.",
     rich_markup_mode="rich",
+    invoke_without_command=True,
 )
 console = Console()
+
+
+@app.callback()
+def _app_startup(ctx: typer.Context) -> None:
+    """Auto-load active project context before every command.
+
+    If a project is active (set via `ai4saw project switch`), this silently:
+      - Overrides settings.chroma_collection to the project collection
+      - Sets corpus dir and sources.csv to project paths
+      - Loads the search graph as active graph
+
+    This means ALL commands (query, extract, graph, analyze, export) automatically
+    operate on the active project without any extra flags.
+    """
+    if ctx.invoked_subcommand is None:
+        return
+    try:
+        from ai4saw.core.project import load_active_project_context
+        load_active_project_context()
+    except Exception:
+        pass  # never block a command due to project context failure
+
+
+# ── Project-aware path helpers ─────────────────────────────────────────────────
+# Use these instead of hard-coded Path("output/foo") or Path("data/bar") in
+# every command.  When an active project exists they return project-scoped paths;
+# otherwise they fall back to the legacy global layout.
+
+def _op(*parts: str) -> Path:
+    """Resolve an output/ path against the active project (or global output/)."""
+    from ai4saw.core.project import get_output_dir
+    return get_output_dir().joinpath(*parts)
+
+
+def _dp(*parts: str) -> Path:
+    """Resolve a data/ path against the active project (or global data/)."""
+    from ai4saw.core.project import get_data_dir
+    return get_data_dir().joinpath(*parts)
 
 # ── Sub-app groups ──────────────────────────────────────────────────────────
 
@@ -46,6 +85,8 @@ discover_app = typer.Typer(help="Active corpus discovery via ReliefWeb and GDELT
 export_app  = typer.Typer(help="Export structured outputs (JSON, GeoJSON, GEXF).")
 eval_app    = typer.Typer(help="Run evaluation benchmarks.")
 
+project_app = typer.Typer(help="Manage research projects (namespaced corpus + graph).")
+
 app.add_typer(ingest_app,   name="ingest")
 app.add_typer(extract_app,  name="extract")
 app.add_typer(graph_app,    name="graph")
@@ -54,6 +95,7 @@ app.add_typer(analyze_app,  name="analyze")
 app.add_typer(discover_app, name="discover")
 app.add_typer(export_app,   name="export")
 app.add_typer(eval_app,     name="eval")
+app.add_typer(project_app,  name="project")
 
 
 # ── Ingest ─────────────────────────────────────────────────────────────────
@@ -136,8 +178,9 @@ def run_ner(
 
 @extract_app.command("pipeline")
 def run_extraction_pipeline(
-    output_dir: Path = typer.Option(Path("./output"), help="Output directory"),
+    output_dir: Optional[Path] = typer.Option(None, help="Output directory (default: project or ./output)"),
     delay: float = typer.Option(0.25, help="Delay between LLM calls (seconds)"),
+    max_chunks: int = typer.Option(0, "--max", "-n", help="Max chunks to process (0 = all)"),
 ) -> None:
     """Run full extraction pipeline (NER + relations + events) on all indexed chunks."""
     from ai4saw.extraction.events import classify_events_batch
@@ -145,6 +188,7 @@ def run_extraction_pipeline(
     from ai4saw.extraction.relations import extract_relations_batch
     from ai4saw.ingestion.embedder import get_vector_store
 
+    output_dir = output_dir or _op()
     store = get_vector_store()
     result = store._collection.get(include=["documents", "metadatas"])
     texts: list[str] = result.get("documents") or []
@@ -155,7 +199,11 @@ def run_extraction_pipeline(
         typer.echo("No documents in ChromaDB. Run `ai4saw ingest` first.", err=True)
         raise typer.Exit(1)
 
-    console.print(f"Running extraction on {len(pairs)} chunk(s)...")
+    if max_chunks > 0:
+        pairs = pairs[:max_chunks]
+        console.print(f"Running extraction on {len(pairs)} chunk(s) (limited from {len(texts)})...")
+    else:
+        console.print(f"Running extraction on {len(pairs)} chunk(s)...")
     ner_results = extract_entities_batch(pairs, delay_between=delay)
     rel_results = extract_relations_batch(pairs, delay_between=delay)
     event_results = classify_events_batch(pairs, delay_between=delay)
@@ -179,10 +227,10 @@ def run_extraction_pipeline(
 
 @extract_app.command("resolve")
 def run_entity_resolution(
-    ner_file: Path = typer.Option(Path("output/ner_results.json")),
+    ner_file: Optional[Path] = typer.Option(None),
     cosine_threshold: float = typer.Option(0.88, help="Cosine similarity threshold (0–1)"),
     fuzzy_threshold: float = typer.Option(72.0, help="String fuzzy match threshold (0–100)"),
-    output: Path = typer.Option(Path("data/entity_registry.json"), help="Output path"),
+    output: Optional[Path] = typer.Option(None, help="Output path"),
 ) -> None:
     """Resolve NER entities across the corpus into a canonical registry.
 
@@ -193,6 +241,8 @@ def run_entity_resolution(
     from ai4saw.core.models import NERResult
     from ai4saw.synthesis.entity_resolution import resolve_entities, save_entity_registry
 
+    ner_file = ner_file or _op("ner_results.json")
+    output   = output   or _dp("entity_registry.json")
     if not ner_file.exists():
         typer.echo(f"NER results not found: {ner_file} — run `extract pipeline` first.", err=True)
         raise typer.Exit(1)
@@ -215,10 +265,10 @@ def run_entity_resolution(
 
 @graph_app.command("build")
 def graph_build(
-    relations_file: Path = typer.Option(Path("output/relation_results.json")),
-    registry_file: Path = typer.Option(Path("data/entity_registry.json")),
+    relations_file: Optional[Path] = typer.Option(None),
+    registry_file: Optional[Path] = typer.Option(None),
     min_confidence: float = typer.Option(0.5, help="Minimum relation confidence to include"),
-    output: Path = typer.Option(Path("data/knowledge_graph.json")),
+    output: Optional[Path] = typer.Option(None),
 ) -> None:
     """Build the knowledge graph from extracted relations and resolved entities.
 
@@ -229,6 +279,9 @@ def graph_build(
     from ai4saw.retrieval.graph_rag import build_knowledge_graph, save_knowledge_graph
     from ai4saw.synthesis.entity_resolution import load_entity_registry
 
+    relations_file = relations_file or _op("relation_results.json")
+    registry_file  = registry_file  or _dp("entity_registry.json")
+    output         = output         or _dp("knowledge_graph.json")
     for p in [relations_file, registry_file]:
         if not p.exists():
             typer.echo(f"Required file not found: {p}", err=True)
@@ -254,7 +307,7 @@ def graph_query(
     at: Optional[str] = typer.Option(
         None, "--at", help="ISO date for temporal filtering, e.g. YYYY-MM-DD"
     ),
-    graph_file: Path = typer.Option(Path("data/knowledge_graph.json")),
+    graph_file: Optional[Path] = typer.Option(None),
     combine_vector: bool = typer.Option(True, help="Also run vector search and combine"),
 ) -> None:
     """Query the knowledge graph (GraphRAG) — structural + semantic retrieval.
@@ -267,6 +320,7 @@ def graph_query(
     """
     from ai4saw.retrieval.graph_rag import graph_context_for_query, load_knowledge_graph
 
+    graph_file = graph_file or _dp("knowledge_graph.json")
     if not graph_file.exists():
         typer.echo("Knowledge graph not found. Run `ai4saw graph build` first.", err=True)
         raise typer.Exit(1)
@@ -379,11 +433,11 @@ def ask(
 
 @analyze_app.command("contradictions")
 def analyze_contradictions(
-    events_file: Path = typer.Option(Path("output/event_results.json")),
-    relations_file: Path = typer.Option(Path("output/relation_results.json")),
+    events_file: Optional[Path] = typer.Option(None),
+    relations_file: Optional[Path] = typer.Option(None),
     min_confidence: float = typer.Option(0.65, help="Minimum LLM confidence to report a pair"),
     max_pairs: int = typer.Option(100, help="Maximum candidate pairs to assess (controls cost)"),
-    output: Path = typer.Option(Path("output/contradictions.json")),
+    output: Optional[Path] = typer.Option(None),
 ) -> None:
     """Detect conflicting claims across source documents.
 
@@ -395,6 +449,9 @@ def analyze_contradictions(
     from ai4saw.core.models import EventResult, RelationResult
     from ai4saw.synthesis.contradiction import detect_contradictions
 
+    events_file    = events_file    or _op("event_results.json")
+    relations_file = relations_file or _op("relation_results.json")
+    output         = output         or _op("contradictions.json")
     for p in [events_file, relations_file]:
         if not p.exists():
             typer.echo(f"Required file not found: {p} — run `extract pipeline` first.", err=True)
@@ -450,12 +507,12 @@ def analyze_contradictions(
 
 @analyze_app.command("network")
 def analyze_network(
-    relations_file: Path = typer.Option(Path("output/relation_results.json")),
+    relations_file: Optional[Path] = typer.Option(None),
     registry_file: Optional[Path] = typer.Option(
         None, help="Entity registry (from extract resolve) — enables canonicalisation"
     ),
     min_confidence: float = typer.Option(0.5, help="Minimum relation confidence"),
-    output: Path = typer.Option(Path("output/network.json")),
+    output: Optional[Path] = typer.Option(None),
     gexf: bool = typer.Option(False, help="Also export GEXF for Gephi visualisation"),
 ) -> None:
     """Build and analyse the perpetrator command network.
@@ -471,6 +528,9 @@ def analyze_network(
         export_network_gexf,
         save_network,
     )
+
+    relations_file = relations_file or _op("relation_results.json")
+    output         = output         or _op("network.json")
 
     if not relations_file.exists():
         typer.echo(f"Relations file not found: {relations_file}", err=True)
@@ -519,7 +579,7 @@ def discover_run(
         None, "--label", help="Filter registry entities by label (e.g. LOCATION ORG)"
     ),
     per_entity_limit: int = typer.Option(25, help="Max results per entity per source"),
-    output: Path = typer.Option(Path("output/discovered_documents.json")),
+    output: Optional[Path] = typer.Option(None),
 ) -> None:
     """Discover documents not yet in the corpus via ReliefWeb and GDELT.
 
@@ -535,8 +595,9 @@ def discover_run(
         discover_from_registry,
     )
 
+    output = output or _op("discovered_documents.json")
     if from_registry:
-        registry_path = Path("data/entity_registry.json")
+        registry_path = _dp("entity_registry.json")
         if not registry_path.exists():
             typer.echo("Entity registry not found. Run `extract resolve` first.", err=True)
             raise typer.Exit(1)
@@ -558,7 +619,7 @@ def discover_run(
         typer.echo("Provide entity names or --from-registry.", err=True)
         raise typer.Exit(1)
 
-    output.parent.mkdir(parents=True, exist_ok=True)
+    output.parent.mkdir(parents=True, exist_ok=True)  # type: ignore[union-attr]
     output.write_text(
         json.dumps(
             {"trigger_entities": result.trigger_entities,
@@ -880,6 +941,8 @@ def discover_agent(
     interval: int = typer.Option(1200, help="Seconds between sessions (default: 20 min)"),
     show_state: bool = typer.Option(False, "--state", help="Print agent state and exit"),
     show_log: int = typer.Option(0, "--log", help="Print last N reasoning entries and exit"),
+    project: Optional[str] = typer.Option(None, "--project", "-p",
+                                           help="Project slug (overrides active project)"),
 ) -> None:
     """Agentic discovery — LLM reads each document and decides what to search for next.
 
@@ -913,9 +976,49 @@ def discover_agent(
         get_agent_summary, top_novel_entities, _seed_frontier, AGENT_LOG_FILE,
     )
     from ai4saw.core.config import settings
+    from ai4saw.core.project import (
+        resolve_project, get_active_project, create_project,
+        set_active_project, get_project_paths, set_active_paths,
+    )
+    from ai4saw.core.search_graph import SearchGraph, set_active_graph
+
+    # ── Project context — always required, auto-create if none active ──────────
+    proj_paths = resolve_project(project)
+    if proj_paths is None:
+        # Auto-create from entity list + geography
+        _auto_name = (", ".join(entities[:2]) + (f" ({geography})" if geography else ""))[:48]
+        try:
+            _meta = create_project(
+                name=_auto_name,
+                research_query=" ".join(entities),
+                geography=geography,
+            )
+            set_active_project(_meta.slug)
+            proj_paths = get_project_paths(_meta.slug)
+            console.print(f"[green]✓[/green] Auto-created project: [bold]{_meta.slug}[/bold]")
+        except Exception as _pe:
+            console.print(f"[yellow]⚠ Project auto-create failed: {_pe} — using global paths[/yellow]")
+
+    _state_path = proj_paths["agent_state"] if proj_paths else None
+    _log_path   = proj_paths["agent_log"]   if proj_paths else None
+    _graph_port_da: Optional[int] = None
+
+    if proj_paths:
+        set_active_paths(proj_paths)
+        _sg = SearchGraph(proj_paths["search_graph"])
+        set_active_graph(_sg)
+        settings.chroma_collection = proj_paths["chroma_collection"]
+        try:
+            from ai4saw.ui.graph_server import start_graph_server
+            _graph_port_da = start_graph_server(proj_paths["search_graph"], project_name=proj_paths["dir"].name)
+            console.print(f"[dim]Project: {proj_paths['dir'].name} | Graph: http://localhost:{_graph_port_da}[/dim]")
+        except Exception:
+            console.print(f"[dim]Project: {proj_paths['dir'].name} | Collection: {proj_paths['chroma_collection']}[/dim]")
+    else:
+        set_active_graph(None)
 
     contact_email = getattr(settings, "contact_email", "")
-    state = load_agent_state()
+    state = load_agent_state(path=_state_path)
 
     # Keep initial_entities updated in state (idempotent)
     for e in entities:
@@ -1014,7 +1117,18 @@ def discover_agent(
                 )
             console.print(t)
 
-        save_agent_state(state)
+        save_agent_state(state, path=_state_path)
+        if proj_paths:
+            _sg.save()
+            if _graph_port_da:
+                try:
+                    from ai4saw.ui.graph_server import push_update
+                    _gdata = json.loads(proj_paths["search_graph"].read_text(encoding="utf-8"))
+                    _nodes = [{"id": n["id"], "label": n.get("label",""), "type": n.get("type",""), "ingested": n.get("ingested", False)} for n in _gdata.get("nodes", [])]
+                    _edges = [{"source": e["src"], "target": e["dst"], "type": e.get("type","")} for e in _gdata.get("edges", [])]
+                    push_update(json.dumps({"nodes": _nodes, "edges": _edges, "stats": _gdata.get("stats", {})}))
+                except Exception:
+                    pass
 
         console.print(Panel(
             f"Docs ingested:       {docs_in}\n"
@@ -1033,19 +1147,287 @@ def discover_agent(
         time.sleep(interval)
 
 
+# ── Project ────────────────────────────────────────────────────────────────
+
+@project_app.command("new")
+def project_new(
+    name: str = typer.Argument(..., help="Project name (e.g. 'Sudan Conflict 2023')"),
+    query: str = typer.Option(..., "--query", "-q", help="Research query for this project"),
+    geography: str = typer.Option("", "--geography", "-g", help="Geographic focus"),
+    switch: bool = typer.Option(True, help="Make this the active project immediately"),
+) -> None:
+    """Create a new research project and (optionally) make it active.
+
+    Each project gets its own isolated corpus, agent state, sources register,
+    ChromaDB collection, and search provenance graph.
+
+    Example:
+      ai4saw project new "Sudan Conflict" --query "Sudan civil war RSF atrocities 2023" --geography Sudan
+    """
+    from ai4saw.core.project import create_project, set_active_project, get_project_paths
+
+    meta = create_project(name, research_query=query, geography=geography)
+    paths = get_project_paths(meta.slug)
+    console.print(Panel(
+        f"Slug:         {meta.slug}\n"
+        f"Query:        {meta.research_query}\n"
+        f"Geography:    {meta.geography or '(not set)'}\n"
+        f"Directory:    {paths['dir']}\n"
+        f"Collection:   {paths['chroma_collection']}",
+        title=f"[bold green]Project created: {meta.name}[/bold green]",
+    ))
+    if switch:
+        set_active_project(meta.slug)
+        console.print(f"[green]✓[/green] Active project set to [bold]{meta.slug}[/bold]")
+
+
+@project_app.command("list")
+def project_list() -> None:
+    """List all projects and show which is active."""
+    from ai4saw.core.project import list_projects, get_active_project, get_project_paths
+
+    projects = list_projects()
+    active = get_active_project()
+
+    if not projects:
+        console.print("[yellow]No projects yet. Run `ai4saw project new` to create one.[/yellow]")
+        return
+
+    table = Table(title="Research Projects", show_header=True)
+    table.add_column("", width=2)
+    table.add_column("Slug", style="cyan")
+    table.add_column("Name")
+    table.add_column("Geography")
+    table.add_column("Query")
+    table.add_column("Created")
+    for p in projects:
+        marker = "[bold green]✓[/bold green]" if p.slug == active else " "
+        table.add_row(
+            marker,
+            p.slug,
+            p.name,
+            p.geography or "—",
+            p.research_query[:50],
+            p.created_at[:10],
+        )
+    console.print(table)
+    if active:
+        console.print(f"\n[dim]Active: {active}[/dim]")
+    else:
+        console.print("\n[dim]No active project. Use `ai4saw project switch <slug>` to activate.[/dim]")
+
+
+@project_app.command("switch")
+def project_switch(
+    slug: str = typer.Argument(..., help="Project slug to activate"),
+) -> None:
+    """Switch the active project."""
+    from ai4saw.core.project import set_active_project, load_project
+
+    try:
+        meta = load_project(slug)
+    except FileNotFoundError:
+        typer.echo(f"Project not found: {slug!r}", err=True)
+        raise typer.Exit(1)
+    set_active_project(slug)
+    console.print(f"[green]✓[/green] Active project: [bold]{meta.name}[/bold] ({slug})")
+
+
+@project_app.command("status")
+def project_status(
+    slug: Optional[str] = typer.Argument(None, help="Project slug (defaults to active project)"),
+) -> None:
+    """Show detailed status for a project: corpus, agent state, search graph."""
+    from ai4saw.core.project import resolve_project, get_active_project, load_project
+    from ai4saw.core.search_graph import SearchGraph
+
+    effective = slug or get_active_project()
+    if not effective:
+        typer.echo("No project specified and no active project.", err=True)
+        raise typer.Exit(1)
+
+    try:
+        meta = load_project(effective)
+    except FileNotFoundError:
+        typer.echo(f"Project not found: {effective!r}", err=True)
+        raise typer.Exit(1)
+
+    paths = resolve_project(effective)
+
+    # Agent state stats
+    agent_stats: dict = {}
+    if paths["agent_state"].exists():
+        try:
+            from ai4saw.agents.agent_discover import load_agent_state, get_agent_summary
+            state = load_agent_state(path=paths["agent_state"])
+            agent_stats = get_agent_summary(state)
+        except Exception:
+            pass
+
+    # Corpus stats
+    corpus_files = list(paths["corpus"].glob("*.pdf")) if paths["corpus"].exists() else []
+    sources_count = 0
+    if paths["sources_csv"].exists():
+        import csv as _csv
+        with open(paths["sources_csv"], encoding="utf-8") as f:
+            sources_count = sum(1 for _ in _csv.DictReader(f))
+
+    # Search graph stats
+    graph_stats: dict = {}
+    if paths["search_graph"].exists():
+        try:
+            g = SearchGraph(paths["search_graph"])
+            graph_stats = g.stats()
+        except Exception:
+            pass
+
+    console.print(Panel(
+        f"Name:          {meta.name}\n"
+        f"Slug:          {meta.slug}\n"
+        f"Query:         {meta.research_query}\n"
+        f"Geography:     {meta.geography or '(not set)'}\n"
+        f"Created:       {meta.created_at[:19]}\n"
+        f"Directory:     {paths['dir']}",
+        title="[bold cyan]Project[/bold cyan]",
+    ))
+
+    if agent_stats:
+        console.print(Panel(
+            f"Sessions:        {agent_stats.get('sessions', 0)}\n"
+            f"URLs visited:    {agent_stats.get('urls_visited', 0)}\n"
+            f"Docs ingested:   {agent_stats.get('docs_ingested', 0)}\n"
+            f"Novel entities:  {agent_stats.get('novel_entities', 0)}\n"
+            f"Queries queued:  {agent_stats.get('queries_queued', 0)}\n"
+            f"Last run:        {agent_stats.get('last_run') or 'never'}",
+            title="[bold cyan]Agent State[/bold cyan]",
+        ))
+
+    console.print(Panel(
+        f"PDFs downloaded: {len(corpus_files)}\n"
+        f"Sources registered: {sources_count}",
+        title="[bold cyan]Corpus[/bold cyan]",
+    ))
+
+    if graph_stats:
+        console.print(Panel(
+            f"Total nodes:  {graph_stats['total_nodes']}\n"
+            f"Total edges:  {graph_stats['total_edges']}\n"
+            f"Node types:   {graph_stats['node_types']}\n"
+            f"Edge types:   {graph_stats['edge_types']}",
+            title="[bold cyan]Search Graph[/bold cyan]",
+        ))
+    else:
+        console.print("[dim]Search graph: not built yet (run `discover agent` or `research`).[/dim]")
+
+
+@project_app.command("graph")
+def project_graph(
+    slug: Optional[str] = typer.Argument(None, help="Project slug (defaults to active)"),
+    format: str = typer.Option("stats", "--format", "-f",
+                               help="Output format: stats | gexf | networkx"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o",
+                                          help="Write to file (default: print to console)"),
+) -> None:
+    """Inspect or export the search provenance graph for a project.
+
+    The graph records every query, source, URL, entity, and LLM-generated
+    query — and how they connect. Use --format gexf to export for Gephi.
+
+    Formats:
+      stats     — print node/edge counts by type (default)
+      gexf      — export GEXF XML (open in Gephi, yEd, or NetworkX)
+      networkx  — export NetworkX node-link JSON
+
+    Examples:
+      ai4saw project graph                          # stats for active project
+      ai4saw project graph sudan_conflict_2023      # stats for specific project
+      ai4saw project graph --format gexf -o g.gexf  # export for Gephi
+    """
+    from ai4saw.core.project import get_active_project, load_project, get_project_paths
+    from ai4saw.core.search_graph import SearchGraph
+
+    effective = slug or get_active_project()
+    if not effective:
+        typer.echo("No project specified and no active project.", err=True)
+        raise typer.Exit(1)
+
+    try:
+        load_project(effective)
+    except FileNotFoundError:
+        typer.echo(f"Project not found: {effective!r}", err=True)
+        raise typer.Exit(1)
+
+    paths = get_project_paths(effective)
+    if not paths["search_graph"].exists():
+        console.print("[yellow]No search graph yet — run `ai4saw research` or `ai4saw discover agent` first.[/yellow]")
+        raise typer.Exit(0)
+
+    g = SearchGraph(paths["search_graph"])
+
+    if format == "stats":
+        stats = g.stats()
+        console.print(Panel(
+            f"Nodes:  {stats['total_nodes']}\n"
+            f"Edges:  {stats['total_edges']}\n\n"
+            f"Node types:\n" +
+            "\n".join(f"  {t}: {n}" for t, n in stats["node_types"].items()) +
+            "\n\nEdge types:\n" +
+            "\n".join(f"  {t}: {n}" for t, n in stats["edge_types"].items()),
+            title=f"[bold cyan]Search Graph — {effective}[/bold cyan]",
+        ))
+        # Top entities by hits
+        top_ents = g.top_nodes("entity", n=10)
+        if top_ents:
+            t = Table(title="Top discovered entities (by mention count)")
+            t.add_column("Entity"); t.add_column("Hits", justify="right")
+            for ent, hits in top_ents:
+                t.add_row(ent, str(hits))
+            console.print(t)
+        # Top sources by hits
+        top_srcs = g.top_nodes("source", n=10)
+        if top_srcs:
+            t = Table(title="Most-queried sources")
+            t.add_column("Source"); t.add_column("Hits", justify="right")
+            for src, hits in top_srcs:
+                t.add_row(src, str(hits))
+            console.print(t)
+
+    elif format == "gexf":
+        content = g.to_gexf()
+        dest = output or paths["dir"] / "search_graph.gexf"
+        dest.write_text(content, encoding="utf-8")
+        console.print(f"[green]GEXF exported →[/green] {dest}")
+        console.print(f"[dim]Open in Gephi: File → Open → select the .gexf file[/dim]")
+
+    elif format == "networkx":
+        import json as _json
+        content = _json.dumps(g.to_networkx_dict(), indent=2)
+        dest = output or paths["dir"] / "search_graph_nx.json"
+        dest.write_text(content, encoding="utf-8")
+        console.print(f"[green]NetworkX JSON exported →[/green] {dest}")
+        console.print(f"[dim]Load with: import networkx as nx; G = nx.node_link_graph(json.load(open('{dest}')))[/dim]")
+
+    else:
+        typer.echo(f"Unknown format: {format!r}. Choose: stats, gexf, networkx", err=True)
+        raise typer.Exit(1)
+
+
 # ── Export ─────────────────────────────────────────────────────────────────
 
 @export_app.command("all")
 def export_all(
-    ner_file: Path = typer.Option(Path("output/ner_results.json")),
-    relations_file: Path = typer.Option(Path("output/relation_results.json")),
-    events_file: Path = typer.Option(Path("output/event_results.json")),
+    ner_file: Optional[Path] = typer.Option(None),
+    relations_file: Optional[Path] = typer.Option(None),
+    events_file: Optional[Path] = typer.Option(None),
 ) -> None:
     """Export events (GeoJSON), relations, entities, and corpus stats."""
     from ai4saw.core.models import EventResult, NERResult, RelationResult
     from ai4saw.ingestion.embedder import get_vector_store
     from ai4saw.synthesis.export import export_all as _export_all
 
+    ner_file       = ner_file       or _op("ner_results.json")
+    relations_file = relations_file or _op("relation_results.json")
+    events_file    = events_file    or _op("event_results.json")
     for p in [ner_file, relations_file, events_file]:
         if not p.exists():
             typer.echo(f"File not found: {p} — run `extract pipeline` first.", err=True)
@@ -1100,9 +1482,9 @@ def eval_rag(
 
 @eval_app.command("judge")
 def eval_judge(
-    ner_file: Path = typer.Option(Path("output/ner_results.json")),
-    relations_file: Path = typer.Option(Path("output/relation_results.json")),
-    events_file: Path = typer.Option(Path("output/event_results.json")),
+    ner_file: Optional[Path] = typer.Option(None),
+    relations_file: Optional[Path] = typer.Option(None),
+    events_file: Optional[Path] = typer.Option(None),
     sample: int = typer.Option(20, help="Number of chunks to evaluate (20 for dev, 50+ for benchmarks)"),
     output: Optional[Path] = typer.Option(None),
     seed: int = typer.Option(42, help="Random seed for reproducible sampling"),
@@ -1116,6 +1498,9 @@ def eval_judge(
     """
     from eval.llm_judge import display_report, run_judge
 
+    ner_file       = ner_file       or _op("ner_results.json")
+    relations_file = relations_file or _op("relation_results.json")
+    events_file    = events_file    or _op("event_results.json")
     for p in [ner_file, relations_file, events_file]:
         if not p.exists():
             typer.echo(f"File not found: {p} — run `extract pipeline` first.", err=True)
@@ -1127,12 +1512,186 @@ def eval_judge(
     display_report(report)
 
 
+# ── Wipe ──────────────────────────────────────────────────────────────────
+
+@app.command("wipe")
+def wipe(
+    project_slug: Optional[str] = typer.Option(
+        None, "--project", "-p",
+        help="Wipe a specific project (slug). Use 'all' to wipe all projects."
+    ),
+    state:    bool = typer.Option(True,  help="Wipe agent state (frontier, visited URLs, entities)"),
+    chroma:   bool = typer.Option(False, "--chroma", help="Wipe ChromaDB collection(s)"),
+    corpus:   bool = typer.Option(False, "--corpus", help="Delete downloaded corpus PDFs"),
+    graph:    bool = typer.Option(False, "--graph",  help="Delete search provenance graph"),
+    all_data: bool = typer.Option(False, "--all",    help="Wipe everything"),
+    yes:      bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
+) -> None:
+    """Clear session data so the next run starts fresh.
+
+    With no --project flag, operates on the global (legacy) data only.
+    With --project <slug>, wipes only that project's isolated data.
+    With --project all, wipes ALL projects.
+
+    Examples:
+      ai4saw wipe                        # clear global agent state
+      ai4saw wipe --all                  # clear everything global
+      ai4saw wipe --project sudan_2023   # wipe one project
+      ai4saw wipe --project all --all    # nuke all projects completely
+    """
+    import shutil
+    from ai4saw.agents.agent_discover import AGENT_STATE_FILE, AGENT_LOG_FILE
+
+    if all_data:
+        state = chroma = corpus = graph = True
+
+    # ── Project wipe ──────────────────────────────────────────────────────────
+    if project_slug:
+        from ai4saw.core.project import (
+            list_projects, get_project_paths, load_project,
+            get_active_project, clear_active_project,
+        )
+        import chromadb as _cdb
+
+        if project_slug == "all":
+            targets = [(p.slug, get_project_paths(p.slug)) for p in list_projects()]
+            if not targets:
+                console.print("[yellow]No projects to wipe.[/yellow]")
+                raise typer.Exit(0)
+        else:
+            try:
+                load_project(project_slug)
+            except FileNotFoundError:
+                typer.echo(f"Project not found: {project_slug!r}", err=True)
+                raise typer.Exit(1)
+            targets = [(project_slug, get_project_paths(project_slug))]
+
+        console.print(f"\n[bold red]Wiping {len(targets)} project(s):[/bold red]")
+        for slug, paths in targets:
+            console.print(f"  [bold]{slug}[/bold]  →  {paths['dir']}")
+
+        items_to_show = []
+        if state:  items_to_show.append("agent state + log")
+        if corpus: items_to_show.append("corpus PDFs")
+        if graph:  items_to_show.append("search graph")
+        if chroma: items_to_show.append("ChromaDB collection")
+        console.print(f"  Scope: {', '.join(items_to_show) or 'nothing selected'}")
+
+        if not items_to_show:
+            console.print("[yellow]Nothing selected. Add --state/--corpus/--graph/--chroma or --all.[/yellow]")
+            raise typer.Exit(0)
+
+        if not yes:
+            typer.confirm("\nProceed?", default=False, abort=True)
+
+        for slug, paths in targets:
+            if state:
+                paths["agent_state"].unlink(missing_ok=True)
+                paths["agent_log"].unlink(missing_ok=True)
+                console.print(f"[green]✓[/green] [{slug}] Agent state cleared")
+            if graph:
+                paths["search_graph"].unlink(missing_ok=True)
+                console.print(f"[green]✓[/green] [{slug}] Search graph cleared")
+            if corpus:
+                if paths["corpus"].exists():
+                    pdfs = list(paths["corpus"].glob("*.pdf"))
+                    for p in pdfs:
+                        p.unlink(missing_ok=True)
+                paths["sources_csv"].unlink(missing_ok=True)
+                console.print(f"[green]✓[/green] [{slug}] Corpus PDFs + sources.csv cleared")
+            if chroma:
+                try:
+                    from ai4saw.core.config import settings as _s
+                    _client = _cdb.PersistentClient(path=str(_s.chroma_persist_dir))
+                    _col = paths["chroma_collection"]
+                    _client.delete_collection(_col)
+                    console.print(f"[green]✓[/green] [{slug}] ChromaDB collection '{_col}' deleted")
+                except Exception as exc:
+                    console.print(f"[yellow]![/yellow] [{slug}] ChromaDB: {exc}")
+
+            # If wiping all data, remove the whole project dir
+            if all_data:
+                shutil.rmtree(paths["dir"], ignore_errors=True)
+                console.print(f"[green]✓[/green] [{slug}] Project directory deleted")
+                # Clear active project pointer if we just wiped it
+                if get_active_project() == slug:
+                    clear_active_project()
+
+        console.print("\n[bold green]Done.[/bold green]")
+        return
+
+    # ── Global (legacy) wipe ──────────────────────────────────────────────────
+    items: list[tuple[str, Path | None]] = []
+    if state:
+        items += [
+            ("Agent state (frontier + visited URLs + entities)", AGENT_STATE_FILE),
+            ("Agent reasoning log", AGENT_LOG_FILE),
+            ("Research errors log", Path("output/research_errors.log")),
+            ("Research stderr log", Path("output/research_stderr.log")),
+        ]
+    if chroma:
+        items.append(("ChromaDB (all embedded chunks)", Path("data/chroma")))
+    if corpus:
+        items.append(("Corpus PDFs", None))  # handled separately
+
+    if not items and not corpus:
+        console.print("[yellow]Nothing selected to wipe. Use --all for everything.[/yellow]")
+        raise typer.Exit(0)
+
+    console.print("\n[bold red]This will delete:[/bold red]")
+    for label, _ in items:
+        console.print(f"  [red]✗[/red] {label}")
+    if corpus:
+        n = len(list(Path("corpus").glob("*.pdf")))
+        console.print(f"  [red]✗[/red] {n} corpus PDF files")
+
+    if not yes:
+        typer.confirm("\nProceed?", default=False, abort=True)
+
+    for label, path in items:
+        if path is None:
+            continue
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+        elif path.exists():
+            path.unlink(missing_ok=True)
+        console.print(f"[green]✓[/green] Deleted {label}")
+
+    if corpus:
+        pdfs = list(Path("corpus").glob("*.pdf"))
+        for p in pdfs:
+            p.unlink(missing_ok=True)
+        Path("corpus/sources.csv").write_text(
+            "filename,title,source_url,doc_type,language,date_published,geography,licence,notes\n",
+            encoding="utf-8"
+        )
+        console.print(f"[green]✓[/green] Deleted {len(pdfs)} corpus PDFs and reset sources.csv")
+
+    console.print("\n[bold green]Done — next run starts fresh.[/bold green]")
+
+
 # ── Info ──────────────────────────────────────────────────────────────────
 
 @app.command("info")
 def info() -> None:
     """Show current configuration and status of all data artefacts."""
     from ai4saw.core.config import settings
+    from ai4saw.core.project import get_active_project, load_project
+
+    active = get_active_project()
+    if active:
+        try:
+            meta = load_project(active)
+            console.print(Panel(
+                f"Slug:     {meta.slug}\n"
+                f"Name:     {meta.name}\n"
+                f"Query:    {meta.research_query}\n"
+                f"Geo:      {meta.geography or '—'}",
+                title="[bold magenta]Active Project[/bold magenta]",
+                border_style="magenta",
+            ))
+        except Exception:
+            pass
 
     table = Table(title="AI4SAW Configuration", show_header=False)
     table.add_column("Key", style="cyan")
@@ -1143,28 +1702,34 @@ def info() -> None:
     table.add_row("Embedding model", settings.embedding_model)
     table.add_row("ChromaDB", str(settings.chroma_persist_dir))
     table.add_row("Collection", settings.chroma_collection)
-    table.add_row("Output dir", str(settings.output_dir))
+    table.add_row("Output dir", str(_op()))
+    table.add_row("Data dir", str(_dp()))
     table.add_row("Prompts dir", str(settings.prompts_dir))
     table.add_row("Retrieval top-K", str(settings.retrieval_top_k))
     table.add_row("Re-rank top-N", str(settings.rerank_top_n))
     console.print(table)
 
-    # Artefact status
+    # Artefact status — all paths resolve to active project or legacy
     artefacts = {
         "ChromaDB": settings.chroma_persist_dir / "chroma.sqlite3",
-        "Entity registry": Path("data/entity_registry.json"),
-        "Knowledge graph": Path("data/knowledge_graph.json"),
-        "NER results": Path("output/ner_results.json"),
-        "Relation results": Path("output/relation_results.json"),
-        "Event results": Path("output/event_results.json"),
-        "Contradictions": Path("output/contradictions.json"),
-        "Network": Path("output/network.json"),
+        "Entity registry": _dp("entity_registry.json"),
+        "Knowledge graph": _dp("knowledge_graph.json"),
+        "NER results":     _op("ner_results.json"),
+        "Relation results":_op("relation_results.json"),
+        "Event results":   _op("event_results.json"),
+        "Contradictions":  _op("contradictions.json"),
+        "Network":         _op("network.json"),
     }
     status_table = Table(title="Data Artefacts", show_header=False)
     status_table.add_column("Artefact", style="cyan")
+    status_table.add_column("Path", style="dim")
     status_table.add_column("Status")
     for name, path in artefacts.items():
-        status_table.add_row(name, "[green]exists[/green]" if path.exists() else "[dim]not yet built[/dim]")
+        status_table.add_row(
+            name,
+            str(path),
+            "[green]exists[/green]" if path.exists() else "[dim]not yet built[/dim]",
+        )
     console.print(status_table)
 
 
@@ -1218,6 +1783,9 @@ def research(
     max_reasoning: int = typer.Option(8, help="Max docs to run LLM reasoning on per session"),
     seed_every: int = typer.Option(6, help="Re-seed frontier every N sessions"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
+    debug: bool = typer.Option(False, "--debug", help="Show all logs/errors in terminal (no Live UI)"),
+    project: Optional[str] = typer.Option(None, "--project", "-p",
+                                           help="Project slug (overrides active project)"),
 ) -> None:
     """One-command research loop — describe what you want, the system finds it."""
     import os, sys
@@ -1230,11 +1798,40 @@ def research(
     )
     from ai4saw.agents.agent_discover import (
         AgentDiscoverState, DiscoveryReasoning,
-        get_agent_summary, load_agent_state, run_agent_session,
+        get_agent_summary, load_agent_state, run_agent_session_pipeline,
         save_agent_state, top_novel_entities, _seed_frontier,
         _llm_generate_seed_queries, prune_frontier,
     )
     from ai4saw.ui.dashboard import DashboardState, make_renderable
+
+    from ai4saw.core.project import (
+        resolve_project, create_project, set_active_project,
+        get_project_paths, set_active_paths,
+    )
+    from ai4saw.core.search_graph import SearchGraph, set_active_graph
+    from ai4saw.core.config import settings as _cfg
+
+    # ── Project context — always required, auto-create from query if needed ────
+    # First resolve explicitly supplied --project or active project
+    _proj_paths = resolve_project(project)
+    # If no project is active, auto-create one from the query string (after parsing)
+    # We defer auto-creation until after query parsing so we have a good name.
+    # Flag it so we can create it once we have the query.
+    _auto_create_project = _proj_paths is None
+
+    _state_path: Optional[Path] = None
+    _graph_port: Optional[int] = None
+    _sg = None
+
+    if debug:
+        # Debug mode: keep stderr, restore loguru, no splash, plain output
+        _logger.remove()
+        _logger.add(sys.stderr, level="DEBUG", colorize=True)
+        console.print(f"[bold yellow]DEBUG MODE[/bold yellow] — all logs visible, no UI")
+        if not query:
+            query = console.input("[bold blue]Research query:[/bold blue] ").strip()
+        _run_debug(query, yes, frontier_batch, max_reasoning, seed_every, interval, _state_path)
+        return
 
     # Kill loguru — events surface via on_event callbacks instead.
     _logger.remove()
@@ -1267,6 +1864,31 @@ def research(
             ]
             if topics:
                 steps.append(("green", f"  ✓  Topics:    {', '.join(topics)}"))
+            # ── Auto-create project if none active ────────────────────────────
+            if _auto_create_project:
+                try:
+                    _meta = create_project(
+                        name=query[:48],
+                        research_query=query,
+                        geography=geography,
+                    )
+                    set_active_project(_meta.slug)
+                    _proj_paths = get_project_paths(_meta.slug)
+                    steps.append(("green", f"  ✓  Project:   {_meta.slug}"))
+                except Exception as _pe:
+                    steps.append(("yellow", f"  ⚠  Project auto-create failed: {_pe}"))
+            if _proj_paths:
+                set_active_paths(_proj_paths)
+                _state_path = _proj_paths["agent_state"]
+                _cfg.chroma_collection = _proj_paths["chroma_collection"]
+                _sg = SearchGraph(_proj_paths["search_graph"])
+                set_active_graph(_sg)
+                try:
+                    from ai4saw.ui.graph_server import start_graph_server
+                    _graph_port = start_graph_server(_proj_paths["search_graph"], project_name=_proj_paths["dir"].name)
+                    steps.append(("green", f"  ✓  Graph UI:  http://localhost:{_graph_port}"))
+                except Exception:
+                    pass
             steps.append(("dim", "  ✓  Loading agent state…"))
             steps.append(("dim", "  Starting research loop…"))
         except Exception as exc:
@@ -1278,7 +1900,7 @@ def research(
         time.sleep(2.0)
 
     # ── Load or init agent state ──────────────────────────────────────────────
-    agent_state = load_agent_state()
+    agent_state = load_agent_state(path=_state_path)
     if not agent_state.initial_entities:
         agent_state.initial_entities = entities
     else:
@@ -1291,6 +1913,8 @@ def research(
         query=query,
         geography=geography,
         entities=entities,
+        graph_url=f"http://localhost:{_graph_port}" if _graph_port else "",
+        project_name=_proj_paths["dir"].name if _proj_paths else "",
     )
     # Restore prior session data immediately so UI isn't empty on restart
     _prior = get_agent_summary(agent_state)
@@ -1301,6 +1925,9 @@ def research(
     dash.top_entities     = _prior["top_novel_entities"]
     dash.docs_ingested    = agent_state.total_docs_ingested
     dash.docs_skipped     = agent_state.total_docs_skipped
+    dash.urls_visited     = _prior["urls_visited"]
+    dash.goals            = list(agent_state.goals)
+    dash.goals_updated_at = agent_state.goals_updated_at
     dash.chunks_added     = agent_state.total_chunks_added
     dash.session          = agent_state.session_count
     # Replay last N reasoning log entries into the feed
@@ -1334,20 +1961,71 @@ def research(
 
     session_number = 0
 
-    # Only suppress stderr now — splash and processing screens need it for errors.
+    # Route stderr through the Live feed so errors appear on screen
     _old_stderr = sys.stderr
-    sys.stderr = open(os.devnull, "w")
+    _stderr_log = Path("output/research_stderr.log")
+    _stderr_log.parent.mkdir(parents=True, exist_ok=True)
+
+    # Catch ALL unhandled exceptions and write to log before terminal is restored
+    import sys as _sys
+    def _crash_handler(exc_type, exc_val, exc_tb):
+        import traceback as _tb_crash
+        _crash_text = "".join(_tb_crash.format_exception(exc_type, exc_val, exc_tb))
+        try:
+            _error_log.write_text(_crash_text, encoding="utf-8")
+        except Exception:
+            pass
+        _sys.__excepthook__(exc_type, exc_val, exc_tb)
+    _sys.excepthook = _crash_handler
+
+    class _FeedStderr:
+        """Routes stderr writes into the Live feed error panel."""
+        def write(self, msg: str) -> None:
+            msg = msg.strip()
+            if msg and hasattr(self, '_event_fn'):
+                self._event_fn("error", msg[:120])
+            _stderr_log.open("a", encoding="utf-8").write(msg + "\n")
+        def flush(self) -> None: pass
+    _feed_stderr = _FeedStderr()
+    sys.stderr = _feed_stderr
 
     try:
         with Live(make_renderable(dash), refresh_per_second=8, screen=True) as live:
 
+            _feed_stderr._event_fn = lambda etype, msg: _event("error", msg)
+
             def _event(etype: str, msg: str) -> None:
-                dash.push(etype, msg)
+                # model_* events only update status indicators, never the feed
+                if not etype.startswith("model_"):
+                    dash.push(etype, msg)
                 dash.current_action = msg if etype == "info" else dash.current_action
                 if etype == "ingest":
                     dash.docs_ingested += 1
+                    dash.urls_visited += 1
                 elif etype == "skip":
                     dash.docs_skipped += 1
+                    dash.urls_visited += 1
+                elif etype == "error":
+                    dash.urls_visited += 1
+                elif etype == "reason":
+                    # Only show "in progress" if we have no result yet — never overwrite a real result
+                    if dash.reasoning_count == 0:
+                        dash.last_doc = msg.replace("Reasoning: ", "")
+                        dash.last_why = "⟳ Reasoning in progress…"
+                        dash.last_entities = []
+                        dash.last_queries = []
+                elif etype == "model_prescreen":
+                    dash.prescreen_status = msg
+                    if msg == "running":
+                        dash.prescreen_calls += 1
+                elif etype == "model_reason":
+                    dash.reason_status = msg
+                    if msg == "running":
+                        dash.reason_calls += 1
+                elif etype == "model_embed":
+                    dash.embed_status = "running" if msg.startswith("running") else "idle"
+                    if msg.startswith("running"):
+                        dash.embed_calls += 1
                 elif etype == "query":
                     dash.recent_queries.append(msg)
                     if len(dash.recent_queries) > 50:
@@ -1355,12 +2033,47 @@ def research(
                 live.update(make_renderable(dash))
 
             def _on_reasoning(r: object) -> None:
-                dash.set_reasoning(
-                    doc=getattr(r, "source_title", ""),
-                    entities=getattr(r, "novel_entities", []),
-                    queries=getattr(r, "generated_queries", []),
-                    why=getattr(r, "reasoning", ""),
-                )
+                entities = getattr(r, "novel_entities", [])
+                queries  = getattr(r, "generated_queries", [])
+                why      = getattr(r, "reasoning", "")
+                doc      = getattr(r, "source_title", "")
+                dash.set_reasoning(doc=doc, entities=entities, queries=queries, why=why)
+                # Refresh analysis panels
+                try:
+                    _summary = get_agent_summary(agent_state)
+                    dash.top_entities     = _summary["top_novel_entities"]
+                    dash.novel_entities   = _summary["novel_entities"]
+                    dash.queries_queued   = _summary["queries_queued"]
+                    dash.queries_executed = _summary["queries_executed"]
+                    dash.urls_visited     = _summary["urls_visited"]
+                except Exception:
+                    pass
+                # Confirm in feed
+                if entities:
+                    _event("query", f"Reasoning ×{dash.reasoning_count}: {', '.join(entities[:3])}")
+                else:
+                    _event("info", f"Reasoning ×{dash.reasoning_count}: no new entities — queries queued")
+                # Set/update goals after every 3rd reasoning — don't wait for session end
+                if dash.reasoning_count % 3 == 1 or not agent_state.goals:
+                    def _update_goals() -> None:
+                        try:
+                            from ai4saw.agents.agent_discover import llm_set_goals as _lsg
+                            new_goals = _lsg(
+                                state=agent_state,
+                                geography=geography,
+                                research_query=query,
+                                narrator_text=dash.narrator_text,
+                            )
+                            if new_goals:
+                                agent_state.goals = new_goals
+                                from datetime import datetime as _dt
+                                agent_state.goals_updated_at = _dt.now().strftime("%H:%M:%S")
+                                dash.goals = new_goals
+                                dash.goals_updated_at = agent_state.goals_updated_at
+                                live.update(make_renderable(dash))
+                        except Exception:
+                            pass
+                    _threading.Thread(target=_update_goals, daemon=True).start()
                 live.update(make_renderable(dash))
 
             def _narrate() -> None:
@@ -1384,10 +2097,27 @@ def research(
                     pass
                 live.update(make_renderable(dash))
 
-            # Generate opening summary immediately on start
-            _narrate()
-
+            # Generate opening summary + initial goals immediately on start
+            def _initial_start() -> None:
+                try:
+                    _narrate()
+                except Exception:
+                    pass
+                try:
+                    from ai4saw.agents.agent_discover import llm_set_goals as _lsg
+                    from datetime import datetime as _dt
+                    new_goals = _lsg(state=agent_state, geography=geography,
+                                     research_query=query, narrator_text=dash.narrator_text)
+                    if new_goals:
+                        agent_state.goals = new_goals
+                        agent_state.goals_updated_at = _dt.now().strftime("%H:%M:%S")
+                        dash.goals = new_goals
+                        dash.goals_updated_at = agent_state.goals_updated_at
+                        live.update(make_renderable(dash))
+                except Exception:
+                    pass
             import threading as _threading
+            _threading.Thread(target=_initial_start, daemon=True).start()
             _error_log = Path("output/research_errors.log")
             _error_log.parent.mkdir(parents=True, exist_ok=True)
             _error_log.write_text("", encoding="utf-8")  # clear on each run
@@ -1423,9 +2153,16 @@ def research(
                 dash.current_action = f"Session {dash.session} — seeding frontier…"
                 live.update(make_renderable(dash))
 
-                frontier_low = len(agent_state.frontier) < 5
+                # With 4 parallel fetchers, frontier drains fast — reseed at 50 not 5
+                frontier_low = len(agent_state.frontier) < 50
                 _drifting = bool(dash.drift_warning)
                 needs_seed = frontier_low or (agent_state.session_count % seed_every == 0) or _drifting
+
+                # Always define _seed_done so _run_session closure can reference it
+                _seed_done = _threading.Event()
+                _seed_error: list[Exception] = []
+                if not needs_seed:
+                    _seed_done.set()  # mark as already done if no seeding needed
 
                 if needs_seed:
                     seed_reason = (
@@ -1471,27 +2208,36 @@ def research(
                         seed_label = "DDG · Wikipedia · CrossRef…"
                     dash.current_action = f"Seeding frontier: {seed_label}"
                     live.update(make_renderable(dash))
-                    _seed_done = _threading.Event()
-                    _seed_error: list[Exception] = []
+
+                    # ALL seeding runs in background — session streams items as they arrive
+                    from ai4saw.agents.agent_discover import (
+                        _execute_novel_query, _frontier_priority, _add_to_frontier,
+                    )
+                    llm_qs = list(agent_state.query_queue)
+                    agent_state.query_queue = []
 
                     def _run_seed() -> None:
                         try:
-                            from ai4saw.agents.agent_discover import (
-                                _execute_novel_query, _frontier_priority, _add_to_frontier,
+                            # DDG first (fast, ~30s) — immediately adds URLs
+                            _all_ents = list(agent_state.initial_entities) + list(agent_state.discovered_entities.keys())
+                            for _q in llm_qs:
+                                _event("info", f"LLM query → {_q[:70]}")
+                                try:
+                                    _docs = _execute_novel_query(_q, _all_ents, agent_state)
+                                    for _d in _docs:
+                                        _pri = _frontier_priority(_d.relevance_score, _d.url, agent_state)
+                                        _add_to_frontier(agent_state, _d.url, _pri, _d.trigger_entity, _d.source)
+                                except Exception:
+                                    pass
+                            # Then slower API sources (Wikipedia/CrossRef/OpenAlex/etc)
+                            _seed_frontier(
+                                llm_qs or list(agent_state.initial_entities),
+                                agent_state,
+                                contact_email=contact_email,
+                                on_event=_event,
+                                use_api_sources=_use_apis,
+                                use_ddg=False,
                             )
-                            # Use LLM queries as the search terms for ALL sources:
-                            # DDG, Wikipedia, CrossRef, OpenAlex, Internet Archive, GDELT.
-                            llm_qs = list(agent_state.query_queue)
-                            agent_state.query_queue = []
-                            if llm_qs:
-                                _seed_frontier(
-                                    llm_qs,          # LLM queries as search terms, not entity names
-                                    agent_state,
-                                    contact_email=contact_email,
-                                    on_event=_event,
-                                    use_api_sources=_use_apis,
-                                    use_ddg=True,
-                                )
                         except Exception as _e:
                             _seed_error.append(_e)
                             import traceback as _tb
@@ -1499,35 +2245,23 @@ def research(
                         finally:
                             _seed_done.set()
 
-                    _t = _threading.Thread(target=_run_seed, daemon=True)
-                    _t.start()
-
-                    # Keep UI alive while seeding runs in background
-                    _spin_i = 0
-                    while not _seed_done.wait(timeout=0.12):
-                        dash.current_action = f"{_spinners[_spin_i % len(_spinners)]} Seeding frontier…"
-                        live.update(make_renderable(dash))
-                        _spin_i += 1
-
-                    if _seed_error:
-                        dash.push("error", f"Seed failed: {str(_seed_error[0])[:60]}")
-                    dash.frontier_size = len(agent_state.frontier)
-                    dash.push("info", f"Frontier seeded: {len(agent_state.frontier)} URLs")
-                    live.update(make_renderable(dash))
+                    _threading.Thread(target=_run_seed, daemon=True).start()
 
                 _sess_done = _threading.Event()
-                _sess_result: list = []   # [docs_in, chunks_in, reasonings] on success
+                _sess_result: list = []
                 _sess_error: list[Exception] = []
 
                 def _run_session() -> None:
+                    # Start immediately — fetchers will wait for frontier items themselves
                     try:
-                        result = run_agent_session(
+                        result = run_agent_session_pipeline(
                             state=agent_state,
                             geography=geography,
                             frontier_batch=frontier_batch,
                             max_reasoning=max_reasoning,
                             on_event=_event,
                             on_reasoning=_on_reasoning,
+                            seeding_done=_seed_done,
                         )
                         _sess_result.append(result)
                     except Exception as _e:
@@ -1537,21 +2271,78 @@ def research(
                     finally:
                         _sess_done.set()
 
-                dash.current_action = "Draining frontier…"
+                # Launch both concurrently — seed fills frontier while session drains it
+                dash.current_action = "Seeding + draining frontier in parallel…"
                 live.update(make_renderable(dash))
                 _threading.Thread(target=_run_session, daemon=True).start()
 
                 _spin_i = 0
+                _ticks = 0
+                _MAX_TICKS = int(600 / 0.12)
+                _REFRESH_EVERY  = int(5 / 0.12)    # refresh analysis panels every ~5s
+                _NARRATE_EVERY  = int(120 / 0.12)  # narrate every ~2 minutes
+                _narrate_running = [False]
                 while not _sess_done.wait(timeout=0.12):
-                    dash.current_action = f"{_spinners[_spin_i % len(_spinners)]} Draining frontier…"
+                    seeding_done = _seed_done.is_set()
+                    status = "draining" if seeding_done else "seeding + draining"
+                    dash.current_action = f"{_spinners[_spin_i % len(_spinners)]} {status}…"
+                    dash.frontier_size = len(agent_state.frontier)
+                    # Refresh analysis panels from live agent state every 5s
+                    if _ticks % _REFRESH_EVERY == 0:
+                        _s = get_agent_summary(agent_state)
+                        dash.top_entities     = _s["top_novel_entities"]
+                        dash.novel_entities   = _s["novel_entities"]
+                        dash.queries_queued   = _s["queries_queued"]
+                        dash.queries_executed = _s["queries_executed"]
+                        dash.urls_visited     = _s["urls_visited"]
+                        dash.chunks_added     = agent_state.total_chunks_added
+                        # Source breakdown from visited URLs
+                        _src_counts: dict[str, int] = {}
+                        for _info in list(agent_state.visited_urls.values())[-500:]:
+                            _src = _info.get("source", "web") if isinstance(_info, dict) else "web"
+                            _src_counts[_src] = _src_counts.get(_src, 0) + 1
+                        dash.source_counts = _src_counts
+                        # Session history milestone
+                        if agent_state.session_count > len(dash.session_history):
+                            dash.session_history.append((
+                                agent_state.session_count,
+                                dash.docs_ingested,
+                                dash.docs_skipped,
+                            ))
+                    # Narrate every 2 minutes — not tied to session completion
+                    if _ticks % _NARRATE_EVERY == 0 and not _narrate_running[0] and dash.docs_ingested > 0:
+                        _narrate_running[0] = True
+                        def _bg_narrate() -> None:
+                            try:
+                                _narrate()
+                            except Exception:
+                                pass
+                            finally:
+                                _narrate_running[0] = False
+                        _threading.Thread(target=_bg_narrate, daemon=True).start()
                     live.update(make_renderable(dash))
                     _spin_i += 1
+                    _ticks += 1
+                    if _ticks >= _MAX_TICKS:
+                        dash.push("error", "Session timed out (10 min) — killing and retrying")
+                        _sess_done.set()
+                        break
+
+                if _seed_error:
+                    dash.push("error", f"Seed failed: {str(_seed_error[0])[:60]}")
+                dash.frontier_size = len(agent_state.frontier)
 
                 if _sess_error:
-                    dash.push("error", f"Session error (see output/research_errors.log): {str(_sess_error[0])[:60]}")
+                    import traceback as _tb2
+                    _error_log.write_text(_tb2.format_exc(), encoding="utf-8")
+                    dash.push("error", f"Session error: {str(_sess_error[0])[:60]}")
                     dash.current_action = f"Session {dash.session} failed — retrying next cycle"
                     live.update(make_renderable(dash))
                     time.sleep(5)
+                elif not _sess_result:
+                    # Session exited without result — treat as 0-doc session and continue
+                    dash.push("error", "Session returned no result — continuing")
+                    live.update(make_renderable(dash))
                 else:
                     docs_in, chunks_in, reasonings = _sess_result[0]
 
@@ -1568,6 +2359,7 @@ def research(
                     dash.queries_queued   = summary["queries_queued"]
                     dash.queries_executed = summary["queries_executed"]
                     dash.top_entities     = summary["top_novel_entities"]
+                    dash.urls_visited     = summary["urls_visited"]
                     dash.session_history.append((dash.session, docs_in, dash.docs_skipped))
 
                     # Drift detection — warn if last 3 sessions were >80% skips
@@ -1583,12 +2375,19 @@ def research(
                             dash.drift_warning = ""
                     dash.current_action   = f"Session {dash.session} complete — {docs_in} ingested, {len(reasonings)} reasoned"
                     live.update(make_renderable(dash))
-                    save_agent_state(agent_state)
-
-                    try:
-                        _narrate()
-                    except Exception:
-                        pass
+                    save_agent_state(agent_state, path=_state_path)
+                    if _proj_paths:
+                        _sg.save()
+                        if _graph_port:
+                            try:
+                                from ai4saw.ui.graph_server import push_update
+                                import json as _json
+                                _gdata = json.loads(_proj_paths["search_graph"].read_text(encoding="utf-8"))
+                                _nodes = [{"id": n["id"], "label": n.get("label",""), "type": n.get("type",""), "ingested": n.get("ingested", False)} for n in _gdata.get("nodes", [])]
+                                _edges = [{"source": e["src"], "target": e["dst"], "type": e.get("type","")} for e in _gdata.get("edges", [])]
+                                push_update(_json.dumps({"nodes": _nodes, "edges": _edges, "stats": _gdata.get("stats", {})}))
+                            except Exception:
+                                pass
 
                 if interval > 0:
                     dash.current_action = f"Sleeping {interval}s…"
@@ -1596,7 +2395,10 @@ def research(
                     time.sleep(interval)
 
     finally:
-        sys.stderr.close()
+        try:
+            sys.stderr.close()
+        except Exception:
+            pass
         sys.stderr = _old_stderr
 
 
@@ -1650,6 +2452,85 @@ Write in present tense as if giving a live briefing. No preamble."""
         HumanMessage(content=prompt),
     ])
     return response.content.strip()
+
+
+def _run_debug(
+    query: str,
+    yes: bool,
+    frontier_batch: int,
+    max_reasoning: int,
+    seed_every: int,
+    interval: int,
+    state_path: Optional[Path] = None,
+) -> None:
+    """Debug mode: no Live UI, all output to terminal, full tracebacks visible."""
+    import threading as _th
+    from ai4saw.agents.agent_discover import (
+        get_agent_summary, load_agent_state, run_agent_session_pipeline,
+        save_agent_state, top_novel_entities, _seed_frontier,
+        _llm_generate_seed_queries, AGENT_LOG_FILE,
+    )
+
+    parsed = _parse_research_query(query)
+    entities: list[str] = parsed.get("entities") or [query]
+    geography: str = parsed.get("geography") or "unknown"
+    console.print(f"[green]Entities:[/green] {entities}  [green]Geography:[/green] {geography}")
+
+    agent_state = load_agent_state(path=state_path)
+    if not agent_state.initial_entities:
+        agent_state.initial_entities = entities
+
+    if not yes:
+        typer.confirm("Start debug research loop?", default=True, abort=True)
+
+    def _on_event(etype: str, msg: str) -> None:
+        colour = {"ingest": "green", "skip": "red", "error": "red", "query": "yellow",
+                  "reason": "cyan", "info": "dim"}.get(etype, "white")
+        console.print(f"[{colour}][{etype}][/{colour}] {msg}")
+
+    session = 0
+    while True:
+        session += 1
+        console.rule(f"[bold]Session {session}[/bold]")
+
+        # Seed
+        llm_qs = list(agent_state.query_queue)
+        agent_state.query_queue = []
+        if not llm_qs and agent_state.session_count == 0:
+            console.print("[dim]Generating LLM seed queries…[/dim]")
+            llm_qs = _llm_generate_seed_queries(agent_state, geography, query, n=10)
+
+        if llm_qs or len(agent_state.frontier) < 50:
+            console.print(f"[dim]Seeding with {len(llm_qs)} LLM queries…[/dim]")
+            _seed_frontier(llm_qs or entities, agent_state,
+                           on_event=_on_event, use_api_sources=True)
+
+        console.print(f"[dim]Frontier: {len(agent_state.frontier)} URLs[/dim]")
+        console.print("[dim]Running session pipeline…[/dim]")
+
+        # Run session (blocking, full tracebacks visible)
+        docs_in, chunks_in, reasonings = run_agent_session_pipeline(
+            state=agent_state,
+            geography=geography,
+            frontier_batch=frontier_batch,
+            max_reasoning=max_reasoning,
+            on_event=_on_event,
+        )
+
+        summary = get_agent_summary(agent_state)
+        console.print(
+            f"[green]✓ {docs_in} ingested[/green]  "
+            f"[yellow]⬡ {chunks_in} chunks[/yellow]  "
+            f"[blue]⋯ {summary['frontier_size']} frontier[/blue]  "
+            f"[magenta]✦ {summary['novel_entities']} entities[/magenta]"
+        )
+        save_agent_state(agent_state, path=state_path)
+        from ai4saw.core.search_graph import g_save
+        g_save()
+
+        if interval > 0:
+            console.print(f"[dim]Sleeping {interval}s…[/dim]")
+            time.sleep(interval)
 
 
 if __name__ == "__main__":

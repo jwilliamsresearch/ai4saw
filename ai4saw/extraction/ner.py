@@ -35,15 +35,37 @@ def _build_few_shot_block(examples: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _robust_json(raw: str) -> dict:
+    if "```" in raw:
+        for part in raw.split("```"):
+            part = part.strip().lstrip("json").strip()
+            try:
+                return json.loads(part)
+            except Exception:
+                pass
+    try:
+        return json.loads(raw.strip())
+    except Exception:
+        pass
+    depth, start = 0, -1
+    for i, ch in enumerate(raw):
+        if ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}" and depth > 0:
+            depth -= 1
+            if depth == 0 and start != -1:
+                try:
+                    return json.loads(raw[start:i + 1])
+                except Exception:
+                    start = -1
+    raise json.JSONDecodeError("No valid JSON found", raw, 0)
+
+
 def _parse_ner_response(raw: str, chunk_id: str) -> NERResult:
     raw = raw.strip()
-    # Strip markdown code fences if the model wraps the JSON
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
-    data = json.loads(raw)
+    data = _robust_json(raw)
     entities = [Entity(**e) for e in data.get("entities", [])]
     return NERResult(entities=entities, source_chunk_id=chunk_id)
 

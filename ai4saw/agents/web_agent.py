@@ -275,7 +275,7 @@ def _run_ddg_template(
     docs: list[DiscoveredDocument] = []
     try:
         with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=max_results))
+            results = list(ddgs.text(query, max_results=max_results, region="wt-wt", safesearch="off", backend="api"))
         for r in results:
             url = r.get("href") or r.get("url") or ""
             if not url or url in state.visited_urls:

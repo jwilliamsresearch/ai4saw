@@ -25,20 +25,42 @@ def _load_prompt() -> dict:
         return yaml.safe_load(f)
 
 
+def _extract_json_block(raw: str) -> dict:
+    """Robustly extract a JSON object from LLM output regardless of wrapping."""
+    # Strip code fences
+    if "```" in raw:
+        for part in raw.split("```"):
+            part = part.strip().lstrip("json").strip()
+            try:
+                return json.loads(part)
+            except Exception:
+                pass
+    # Try whole string
+    try:
+        return json.loads(raw.strip())
+    except Exception:
+        pass
+    # Find the FIRST complete { ... } block using bracket counting
+    depth = 0
+    start = -1
+    for i, ch in enumerate(raw):
+        if ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and start != -1:
+                try:
+                    return json.loads(raw[start:i + 1])
+                except Exception:
+                    start = -1  # try next block
+    raise json.JSONDecodeError("No valid JSON object found", raw, 0)
+
+
 def _parse_relation_response(raw: str, chunk_id: str) -> RelationResult:
     raw = raw.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
-    # The CoT prompt produces reasoning followed by a JSON block.
-    # Find the last JSON object in the output.
-    start = raw.rfind("{")
-    end = raw.rfind("}") + 1
-    if start == -1 or end == 0:
-        raise json.JSONDecodeError("No JSON object found in response", raw, 0)
-    data = json.loads(raw[start:end])
+    data = _extract_json_block(raw)
     relations = [Relation(**r) for r in data.get("relations", [])]
     return RelationResult(relations=relations, source_chunk_id=chunk_id)
 

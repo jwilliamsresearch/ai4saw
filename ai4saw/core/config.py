@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     # Models
     default_model: str = "mistral"
+    prescreen_model: str = ""          # fast model for yes/no prescreen; falls back to default_model
     embedding_model: str = "nomic-embed-text"
 
     # API keys / endpoints

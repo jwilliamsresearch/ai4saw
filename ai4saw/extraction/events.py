@@ -37,18 +37,37 @@ def _load_few_shot_prompt() -> dict:
         return yaml.safe_load(f)
 
 
+def _robust_json(raw: str) -> dict:
+    if "```" in raw:
+        for part in raw.split("```"):
+            part = part.strip().lstrip("json").strip()
+            try:
+                return json.loads(part)
+            except Exception:
+                pass
+    try:
+        return json.loads(raw.strip())
+    except Exception:
+        pass
+    depth, start = 0, -1
+    for i, ch in enumerate(raw):
+        if ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}" and depth > 0:
+            depth -= 1
+            if depth == 0 and start != -1:
+                try:
+                    return json.loads(raw[start:i + 1])
+                except Exception:
+                    start = -1
+    raise json.JSONDecodeError("No valid JSON found", raw, 0)
+
+
 def _parse_event_response(raw: str, chunk_id: str) -> EventResult:
     raw = raw.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
-    start = raw.rfind("{")
-    end = raw.rfind("}") + 1
-    if start == -1 or end == 0:
-        raise json.JSONDecodeError("No JSON found", raw, 0)
-    data = json.loads(raw[start:end])
+    data = _robust_json(raw)
     # Normalise event_type to enum
     data["event_type"] = EventType(data.get("event_type", "no_event"))
     data["source_chunk_id"] = chunk_id

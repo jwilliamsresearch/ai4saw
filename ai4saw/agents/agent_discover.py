@@ -45,6 +45,13 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from ai4saw.core.models import DiscoveredDocument
+from ai4saw.core.search_graph import (
+    g_record_entity,
+    g_record_llm_query,
+    g_record_url,
+    g_mark_ingested,
+    g_save,
+)
 from ai4saw.agents.web_agent import (
     FrontierItem, DomainStats, QueryTemplateStats,
     _now, _relevance, _domain, _trusted, _is_pdf,
@@ -101,6 +108,7 @@ Skip ONLY if:
   - The text sample is clearly an error page (403, 404, blank, redirect)
   - The text sample contains zero words related to the research topic
   - It is obviously a completely different subject (e.g. cooking recipes when researching nuclear weapons)
+  - The document is primarily in a non-English language (skip Korean, Chinese, Russian, Arabic etc.)
 
 When in doubt, INGEST. It is better to include a borderline document than to miss evidence.
 
@@ -111,51 +119,29 @@ Output ONLY valid JSON:
 }}"""
 
 _PROMPT = """\
-Research project: {geography} conflict corpus
-Initial entities: {entities}
+Research: {geography} — topic: {entities}
 
-Document excerpt
-  Source: {source} | Trigger: {trigger_entity}
-  Title:  {title}
+Current research goals:
+{goals}
+
+Document
+  Title: {title}
+  Source: {source}
 ---
 {text}
 ---
 
-Already tracked entities (do not repeat): {known_entities}
+Already tracking (skip these): {known_entities}
 
-What has worked so far:
-  High-yield domains: {good_domains}
-  Successful recent queries: {good_queries}
+Extract from the document above — prioritise anything that advances the research goals:
+1. NEW named entities not in the tracking list (people, orgs, places, events, legal cases)
+2. 2-3 specific search queries — each MUST include "{geography}" or topic keywords, and ideally address one of the goals above
 
-What has NOT worked:
-  Low-yield domains (avoid): {bad_domains}
-  Already executed queries (do not repeat): {executed_queries}
-
-Based on the excerpt above:
-
-1. NEW named entities — people, military units, locations, events, legal instruments
-   that appear in this text but are NOT in the already-tracked list.
-
-2. Specific search queries (2–3) that would find corroborating or extending evidence.
-   RULES — every query MUST:
-     a) Include at least one anchor from the initial entities or geography
-        (e.g. the conflict location, country, or topic from the research project)
-        so results stay on-topic.
-     b) Include the specific new entity or event name you discovered.
-     c) Be precise — add dates, unit numbers, court case IDs, locations where known.
-   Prefer sources from the high-yield domains listed above.
-   Do NOT use site: operators — let the search engine find sources naturally.
-   Good: "[Place Name] [topic] [specific event or entity] [year]"
-   Good: "[Person/unit name] [location] [role or action] [year] report"
-   Good: "[Organisation] [event] [location] [year] findings"
-   Bad:  "[entity alone with no topic anchor]"   ← too generic, off-topic results
-   Bad:  "site:hrw.org North Korea"              ← site: operators restrict too much
-
-Output ONLY valid JSON (no text outside the braces):
+Output ONLY valid JSON:
 {{
-  "novel_entities": ["Entity A", "Entity B"],
-  "queries": ["specific query 1", "specific query 2", "specific query 3"],
-  "reasoning": "one sentence explaining why these queries are high-value"
+  "novel_entities": ["name1", "name2"],
+  "queries": ["query 1", "query 2"],
+  "reasoning": "one sentence linking findings to goals"
 }}"""
 
 
@@ -188,6 +174,10 @@ class AgentDiscoverState(BaseModel):
     query_queue: list[str] = []       # LLM-generated queries pending execution
     executed_queries: set[str] = Field(default_factory=set)  # O(1) lookup
 
+    # LLM memory — persists across restarts
+    goals: list[str] = []          # current research goals set by the LLM
+    goals_updated_at: str = ""     # timestamp of last goal update
+
     # Counters
     session_count: int = 0
     docs_reasoned: int = 0
@@ -199,26 +189,29 @@ class AgentDiscoverState(BaseModel):
 
 # ── Persistence ────────────────────────────────────────────────────────────────
 
-def load_agent_state() -> AgentDiscoverState:
-    AGENT_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    if AGENT_STATE_FILE.exists():
+def load_agent_state(path: Optional[Path] = None) -> AgentDiscoverState:
+    p = path or AGENT_STATE_FILE
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if p.exists():
         try:
             return AgentDiscoverState.model_validate_json(
-                AGENT_STATE_FILE.read_text(encoding="utf-8")
+                p.read_text(encoding="utf-8")
             )
         except Exception as exc:
             logger.warning(f"Agent state corrupt, starting fresh: {exc}")
     return AgentDiscoverState()
 
 
-def save_agent_state(state: AgentDiscoverState) -> None:
-    AGENT_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    AGENT_STATE_FILE.write_text(state.model_dump_json(indent=2), encoding="utf-8")
+def save_agent_state(state: AgentDiscoverState, path: Optional[Path] = None) -> None:
+    p = path or AGENT_STATE_FILE
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(state.model_dump_json(indent=2), encoding="utf-8")
 
 
-def _log_reasoning(reasoning: DiscoveryReasoning) -> None:
-    AGENT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(AGENT_LOG_FILE, "a", encoding="utf-8") as f:
+def _log_reasoning(reasoning: DiscoveryReasoning, log_path: Optional[Path] = None) -> None:
+    p = log_path or AGENT_LOG_FILE
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "a", encoding="utf-8") as f:
         f.write(reasoning.model_dump_json() + "\n")
 
 
@@ -242,51 +235,79 @@ def _llm_reason(
     from langchain_core.messages import HumanMessage, SystemMessage
     from ai4saw.core.providers import get_llm
 
-    known_sample = ", ".join(known_entities[:30]) if known_entities else "none yet"
+    # Keep known_entities short — long lists confuse the 7B model
+    known_sample = ", ".join(known_entities[:15]) if known_entities else "none"
 
-    # Build context from prior session performance
-    good_domains = bad_domains = "unknown"
-    good_queries = executed_sample = "none yet"
-    if state:
-        scored = sorted(state.domain_scores.items(),
-                        key=lambda kv: kv[1].hits, reverse=True)
-        good_domains = ", ".join(d for d, s in scored[:5] if s.hits > 0) or "none yet"
-        bad_domains  = ", ".join(d for d, s in scored if s.hits == 0)[:120] or "none"
-        # Sample of queries that produced novel entities (in query_queue or recently executed)
-        good_queries = "; ".join(list(state.executed_queries)[-5:]) or "none yet"
-        executed_sample = "; ".join(list(state.executed_queries)[-10:]) or "none"
-
+    goals_text = "\n".join(f"  - {g}" for g in (state.goals if state else [])) or "  (none set yet)"
     prompt = _PROMPT.format(
         geography=geography,
-        entities=", ".join(initial_entities),
+        entities=", ".join(initial_entities[:5]),
+        goals=goals_text,
         source=doc.source,
-        trigger_entity=doc.trigger_entity,
-        title=doc.title[:120],
-        text=text[:2_000],
+        title=doc.title[:80],
+        text=text[:1_500],
         known_entities=known_sample,
-        good_domains=good_domains,
-        bad_domains=bad_domains,
-        good_queries=good_queries,
-        executed_queries=executed_sample,
     )
 
+    def _extract_json(text: str) -> dict:
+        """Aggressively extract JSON from LLM output regardless of wrapping."""
+        t = text.strip()
+        # Strip code fences
+        if "```" in t:
+            parts = t.split("```")
+            for part in parts:
+                part = part.strip()
+                if part.startswith("json"):
+                    part = part[4:]
+                try:
+                    return json.loads(part.strip())
+                except Exception:
+                    pass
+        # Try raw
+        try:
+            return json.loads(t)
+        except Exception:
+            pass
+        # Find first { ... } block
+        start = t.find("{")
+        end   = t.rfind("}") + 1
+        if start >= 0 and end > start:
+            return json.loads(t[start:end])
+        raise ValueError(f"No JSON found in: {t[:100]!r}")
+
+    import pathlib as _pl
+    _reason_log = _pl.Path("output/reasoning_debug.log")
+    _reason_log.parent.mkdir(parents=True, exist_ok=True)
+
+    last_err = ""
+    raw = ""
+    data: dict = {}
+    for _attempt in range(2):
+        try:
+            llm = get_llm()
+            response = llm.invoke([
+                SystemMessage(content=_make_system(initial_entities, geography)),
+                HumanMessage(content=prompt),
+            ])
+            raw = response.content.strip()
+            # Log every model response so we can see what it's returning
+            _reason_log.open("a", encoding="utf-8").write(
+                f"\n--- attempt {_attempt+1} for {doc.url[:60]} ---\n{raw}\n"
+            )
+            data = _extract_json(raw)
+            break
+        except Exception as exc:
+            last_err = str(exc)
+            _reason_log.open("a", encoding="utf-8").write(
+                f"\n--- PARSE FAIL attempt {_attempt+1}: {exc} ---\nraw={raw[:200]}\n"
+            )
+            if _attempt == 0:
+                time.sleep(1)
+    else:
+        # Return empty result rather than None so on_reasoning always fires
+        data = {"novel_entities": [], "queries": [], "reasoning": f"parse failed: {last_err[:80]}"}
+
     try:
-        llm = get_llm()
-        response = llm.invoke([
-            SystemMessage(content=_make_system(initial_entities, geography)),
-            HumanMessage(content=prompt),
-        ])
-        raw = response.content.strip()
-
-        # Strip markdown code fences if the model wraps output
-        if raw.startswith("```"):
-            parts = raw.split("```")
-            raw = parts[1] if len(parts) > 1 else raw
-            if raw.startswith("json"):
-                raw = raw[4:]
-        raw = raw.strip()
-
-        data = json.loads(raw)
         reasoning = DiscoveryReasoning(
             source_url=doc.url,
             source_title=doc.title[:120],
@@ -425,7 +446,7 @@ def _llm_prescreen(
         return False
 
     from langchain_core.messages import HumanMessage, SystemMessage
-    from ai4saw.core.providers import get_llm
+    from ai4saw.core.providers import get_prescreen_llm
 
     prompt = _PRESCREEN_PROMPT.format(
         geography=geography,
@@ -437,7 +458,7 @@ def _llm_prescreen(
     )
 
     try:
-        llm = get_llm()
+        llm = get_prescreen_llm()
         response = llm.invoke([
             SystemMessage(content=_make_system(initial_entities, geography)),
             HumanMessage(content=prompt),
@@ -493,11 +514,13 @@ def _execute_novel_query(
             relevance = _relevance(trigger, title + " " + (snippet or ""), base=0.5)
             if _trusted(url) or _is_pdf(url):
                 relevance = min(1.0, relevance + 0.2)
-            docs.append(DiscoveredDocument(
+            doc = DiscoveredDocument(
                 title=title, url=url, source="duckduckgo",
                 date=None, relevance_score=relevance,
                 trigger_entity=trigger, snippet=snippet,
-            ))
+            )
+            g_record_url(url, title, "duckduckgo", trigger_query=query, query_type="llm_query")
+            docs.append(doc)
         state.executed_queries.add(query)
         time.sleep(DDG_DELAY)
     except Exception as exc:
@@ -550,7 +573,7 @@ def _seed_frontier(
             from ai4saw.discovery.discovery import discover_for_entities
             # Cap to 5 entities — API sources batch them so more = proportionally slower
             api_entities = entities[:5]
-            result = discover_for_entities(api_entities, per_entity_limit=per_entity_limit)
+            result = discover_for_entities(api_entities, per_entity_limit=per_entity_limit, on_event=on_event)
             added = 0
             for doc in result.documents:
                 if doc.url not in state.visited_urls:
@@ -700,6 +723,7 @@ def run_agent_session(
                 continue
             if entity in state.initial_entities:
                 continue
+            g_record_entity(entity, doc.url)
             if entity in state.discovered_entities:
                 state.discovered_entities[entity]["mention_count"] = (
                     state.discovered_entities[entity].get("mention_count", 1) + 1
@@ -719,6 +743,13 @@ def run_agent_session(
                 logger.info(f"[Guardrail] Query rejected (off-topic): {query!r}")
                 if on_event: on_event("error", f"Guardrail rejected off-topic query: {query[:60]}")
                 continue
+            # Record LLM query in graph — link to entities that triggered it
+            for ent in reasoning.novel_entities:
+                if _entity_plausible(ent):
+                    g_record_llm_query(query, triggered_by_entity=ent, generated_from_url=doc.url)
+                    break
+            else:
+                g_record_llm_query(query, generated_from_url=doc.url)
             state.query_queue.append(query)
 
     # ── Phase 3: execute novel queries (new HTTP client) ──────────────────────
@@ -746,15 +777,446 @@ def run_agent_session(
     return docs_ingested, chunks_added, reasoning_results
 
 
+# ── Pipeline session (parallel fetch → prescreen → embed) ─────────────────────
+
+_NUM_FETCHERS   = 4   # concurrent HTTP fetchers
+_QUEUE_MAXSIZE  = 40  # max items buffered between stages
+
+# Domains that never contain research-quality documents
+_BLOCKED_DOMAINS = frozenset({
+    "dictionary.com", "merriam-webster.com", "collinsdictionary.com",
+    "thesaurus.com", "oxfordlearnersdictionaries.co.uk", "oxforddictionaries.com",
+    "vocabulary.com", "macmillandictionary.com", "cambridge.org/dictionary",
+    "en.wiktionary.org", "lexico.com",
+    "reddit.com", "twitter.com", "facebook.com", "instagram.com",
+    "youtube.com", "tiktok.com", "pinterest.com",
+    "amazon.com", "ebay.com", "etsy.com",
+    "tripadvisor.com", "yelp.com", "booking.com",
+})
+
+
+def run_agent_session_pipeline(
+    state: AgentDiscoverState,
+    geography: str,
+    frontier_batch: int = 20,
+    min_relevance: float = 0.4,
+    max_reasoning: int = MAX_REASONING_PER_SESSION,
+    on_event: Optional[Callable[[str, str], None]] = None,
+    on_reasoning: Optional[Callable[["DiscoveryReasoning"], None]] = None,
+    seeding_done: Optional[threading.Event] = None,
+) -> tuple[int, int, list[DiscoveryReasoning]]:
+    """Pipeline version of run_agent_session.
+
+    Stages run concurrently:
+      4× fetcher threads  — HTTP fetch + load document  → prescreen_q
+      1× prescreen thread — LLM prescreen               → embed_q
+      1× embed thread     — chunk + ChromaDB write
+
+    The main thread drives Phase 2 (LLM reasoning) and Phase 3 (novel queries)
+    after all pipeline workers finish.
+    """
+    import socket as _socket
+    _socket.setdefaulttimeout(25)
+
+    # Patch requests (used by langchain WebBaseLoader) to enforce connect+read timeouts
+    try:
+        import requests as _req
+        _orig_req = _req.Session.request
+        def _req_with_timeout(self, method, url, **kw):
+            kw.setdefault("timeout", (10, 20))
+            return _orig_req(self, method, url, **kw)
+        _req.Session.request = _req_with_timeout
+    except Exception:
+        pass
+
+    # Patch Ollama httpx client to enforce timeouts on LLM/embed calls
+    try:
+        import httpx as _httpx
+        _orig_init = _httpx.Client.__init__
+        def _httpx_init_with_timeout(self, *a, **kw):
+            kw.setdefault("timeout", _httpx.Timeout(30.0))
+            _orig_init(self, *a, **kw)
+        _httpx.Client.__init__ = _httpx_init_with_timeout
+    except Exception:
+        pass
+
+    from ai4saw.agents.fetch_agent import (
+        _is_registered, _register_source, _licence_for_source,
+        _detect_content_type, _download_pdf, _safe_filename, CORPUS_DIR,
+    )
+    from ai4saw.ingestion.chunker import chunk_documents
+    from ai4saw.ingestion.embedder import embed_and_store
+    from ai4saw.ingestion.loaders import load_document
+    from ai4saw.discovery.discovery import _known_urls
+    from datetime import date as _date
+
+    # ── Shared state / locks ──────────────────────────────────────────────────
+    state_lock      = threading.Lock()   # guards state.visited_urls and counters
+    chroma_lock     = threading.Lock()   # guards ChromaDB writes
+    _active_count   = [0]                # current concurrent fetches (always decremented in finally)
+    _host_sems: dict[str, threading.Semaphore] = {}  # max 2 connections per host
+    _host_sems_lock = threading.Lock()
+
+    docs_ingested = 0
+    chunks_added  = 0
+    ingested_docs: list[tuple[DiscoveredDocument, str]] = []
+    results_lock  = threading.Lock()
+
+    # ── Pipeline queues ───────────────────────────────────────────────────────
+    loaded_q   = queue.Queue(maxsize=_QUEUE_MAXSIZE * 2)
+    embed_q    = queue.Queue(maxsize=0)
+    _SENTINEL  = object()
+
+    # If there are pending queries, we should be seeding, not just draining.
+    if state.query_queue:
+        if on_event: on_event("info", "Seeding from LLM-generated queries…")
+        queries_to_run = state.query_queue[:5]
+        state.query_queue = state.query_queue[5:]
+        all_entities = state.initial_entities + list(state.discovered_entities.keys())
+        for query in queries_to_run:
+            if on_event: on_event("query", query[:80])
+            new_docs = _execute_novel_query(query, all_entities, state)
+            for new_doc in new_docs:
+                priority = _frontier_priority(new_doc.relevance_score, new_doc.url, state)  # type: ignore[arg-type]
+                _add_to_frontier(state, new_doc.url, priority, new_doc.trigger_entity, new_doc.source)
+
+    # seeding_done: set by caller (cli.py) when all seeding threads finish
+    if seeding_done is None:
+        seeding_done = threading.Event()
+        seeding_done.set()
+
+    # Session milestone every 100 classified docs (ingested OR skipped)
+    _session_milestone = 100
+    _classified_count  = [0]
+    _session_milestone_lock = threading.Lock()
+
+    # Reason every 3 ingested docs — fires asynchronously, never blocks the pipeline
+    _reason_every      = 3
+    _since_last_reason = [0]
+    _reasoning_lock    = threading.Lock()
+    # No shared lock needed — each operation uses its own model in VRAM simultaneously:
+    # prescreen → qwen2.5:0.5b (fast), reasoning → qwen2.5:7b (deep), embed → nomic-embed-text
+
+    def _trigger_reasoning_if_due() -> None:
+        with _reasoning_lock:
+            _since_last_reason[0] += 1
+            due = _since_last_reason[0] >= _reason_every
+            if due:
+                _since_last_reason[0] = 0
+        if not due:
+            return
+        def _do_reason() -> None:
+            with results_lock:
+                candidates = sorted(ingested_docs[-_reason_every:],
+                                    key=lambda x: x[0].relevance_score, reverse=True)
+            if not candidates:
+                return
+            all_known = list(state.initial_entities) + list(state.discovered_entities.keys())
+            anchors   = all_known[:]
+            for doc, text in candidates:
+                if on_event: on_event("reason", f"Reasoning: {doc.title[:55]}")
+                try:
+                    if on_event: on_event("model_reason", "running")
+                    r = _llm_reason(
+                            text=text, doc=doc,
+                                        initial_entities=state.initial_entities,
+                                        geography=geography, known_entities=all_known,
+                                        state=state)
+                except Exception as exc:
+                    if on_event: on_event("model_reason", "idle")
+                    if on_event: on_event("error", f"Reasoning exception: {str(exc)[:80]}")
+                    continue
+                if not r:
+                    if on_event: on_event("error", f"Reasoning parse failed — check model JSON output")
+                    continue
+                # Update state FIRST so on_reasoning sees populated entities
+                with state_lock:
+                    for ent in r.novel_entities:
+                        if _entity_plausible(ent) and ent not in state.initial_entities:
+                            g_record_entity(ent, doc.url)
+                            state.discovered_entities.setdefault(ent, {
+                                "from_url": doc.url, "timestamp": _now(), "mention_count": 0
+                            })["mention_count"] = state.discovered_entities.get(ent, {}).get("mention_count", 0) + 1
+                    for q in r.generated_queries:
+                        if q not in state.executed_queries and q not in state.query_queue:
+                            if _query_on_topic(q, anchors):
+                                # Link query to first plausible entity that triggered it
+                                trigger_ent = next(
+                                    (e for e in r.novel_entities if _entity_plausible(e)), None
+                                )
+                                g_record_llm_query(q, triggered_by_entity=trigger_ent, generated_from_url=doc.url)
+                                state.query_queue.append(q)
+                                if on_event: on_event("query", q[:80])
+
+                if on_event: on_event("model_reason", "idle")
+                if on_event and r.novel_entities:
+                    on_event("query", f"Found: {', '.join(r.novel_entities[:3])}")
+
+                # Now call on_reasoning — state.discovered_entities is already updated
+                if on_reasoning:
+                    try:
+                        on_reasoning(r)
+                    except Exception as _ore:
+                        if on_event: on_event("error", f"on_reasoning callback failed: {_ore}")
+
+                try:
+                    reasoning_results.append(r)
+                    _log_reasoning(r)
+                    state.docs_reasoned += 1
+                except Exception:
+                    pass
+        threading.Thread(target=_do_reason, daemon=True).start()
+
+    # ── Stage 1: Fetcher workers — stream directly from shared frontier ───────
+    def _fetch_worker() -> None:
+        with httpx.Client(
+            timeout=20.0, follow_redirects=True,
+            headers={"User-Agent": "ai4saw/0.1 (research; https://github.com/ai4saw) httpx"},
+        ) as client:
+            while True:
+                # Pull next item — prefer a domain not already at its semaphore limit
+                item = None
+                with state_lock:
+                    if state.frontier:
+                        _sort_frontier(state)
+                        # Prefer domains not saturated AND not in blocklist
+                        chosen_idx = 0
+                        for _idx, _candidate in enumerate(state.frontier[:20]):
+                            _h = _domain(_candidate.url)
+                            if _h in _BLOCKED_DOMAINS:
+                                continue  # skip blocked domains entirely
+                            _sem = _host_sems.get(_h)
+                            if _sem is None or _sem._value > 0:  # type: ignore
+                                chosen_idx = _idx
+                                break
+                        item = state.frontier.pop(chosen_idx)
+                        # Skip if blocked
+                        if _domain(item.url) in _BLOCKED_DOMAINS:
+                            _record_visit(state, item.url, item.trigger_entity, 0)  # type: ignore
+                            item = None
+
+                if item is None:
+                    if seeding_done.is_set():
+                        break  # seeding finished and frontier empty — done
+                    time.sleep(0.1)  # wait for seeding to add more
+                    continue
+
+                with state_lock:
+                    already = item.url in state.visited_urls or _is_registered(item.url)
+                if already:
+                    with state_lock:
+                        _record_visit(state, item.url, item.trigger_entity, 0)  # type: ignore
+                    with results_lock:
+                        docs_processed[0] -= 1  # didn't actually process
+                    continue
+
+                if item.priority < min_relevance and not _is_pdf(item.url) and not _trusted(item.url):
+                    with state_lock:
+                        _record_visit(state, item.url, item.trigger_entity, 0)  # type: ignore
+                    continue
+
+                host = _domain(item.url)
+                with _host_sems_lock:
+                    if host not in _host_sems:
+                        _host_sems[host] = threading.Semaphore(3)  # max 3 per host
+                host_sem = _host_sems[host]
+                host_sem.acquire()
+
+                with state_lock:
+                    _active_count[0] += 1
+                    n = _active_count[0]
+                if on_event: on_event("info", f"[{n} parallel] Fetching {host}…")
+                doc = DiscoveredDocument(
+                    title=f"Frontier item ({_domain(item.url)})",
+                    url=item.url, source=item.source, date=None,
+                    relevance_score=item.priority, trigger_entity=item.trigger_entity,
+                )
+
+                try:
+                    content_type = _detect_content_type(doc.url, client)
+                    is_pdf = "pdf" in content_type or doc.url.lower().endswith(".pdf")
+                    filename = _safe_filename(doc.url, doc.title, doc.source)
+                    if is_pdf:
+                        dest = CORPUS_DIR / filename
+                        if not _download_pdf(doc.url, dest, client):
+                            with state_lock:
+                                _record_visit(state, item.url, item.trigger_entity, 0)  # type: ignore
+                            continue
+                        source_arg: str = str(dest)
+                        source_url_arg: Optional[str] = doc.url
+                    else:
+                        source_arg = doc.url
+                        source_url_arg = doc.url
+
+                    raw_docs = load_document(
+                        source=source_arg, doc_type="report", language="en",
+                        date_published=None, geography=geography,
+                        source_url=source_url_arg,
+                    )
+                    text_excerpt = _sample_text(raw_docs, total_chars=2_000, slices=5)
+
+                    # Extract links from HTML while we still have the client
+                    if not is_pdf:
+                        html = _fetch_html(doc.url, client)
+                        if html:
+                            with state_lock:
+                                for link in _extract_links(html, doc.url):
+                                    if link in state.visited_urls:
+                                        continue
+                                    if not (_is_pdf(link) or _trusted(link)):
+                                        continue
+                                    priority = _frontier_priority(
+                                        _relevance(item.trigger_entity, link, base=0.3),
+                                        link, state, item.depth + 1,  # type: ignore
+                                    )
+                                    _add_to_frontier(state, link, priority, item.trigger_entity,
+                                                     item.source, item.depth + 1)  # type: ignore
+
+                    loaded_q.put((item, doc, raw_docs, text_excerpt, filename, is_pdf))
+                except Exception as exc:
+                    if on_event: on_event("error", f"{host}: {str(exc)[:60]}")
+                    with state_lock:
+                        _record_visit(state, item.url, item.trigger_entity, 0)  # type: ignore
+                finally:
+                    # Always release — keeps counter accurate and host semaphore free
+                    with state_lock:
+                        _active_count[0] -= 1
+                    host_sem.release()
+
+    # ── Stage 2: Prescreen worker (single — Ollama serialised) ───────────────
+    def _prescreen_worker() -> None:
+        while True:
+            item_tuple = loaded_q.get()
+            if item_tuple is _SENTINEL:
+                embed_q.put(_SENTINEL)
+                break
+            item, doc, raw_docs, text_excerpt, filename, is_pdf = item_tuple
+            domain = _domain(item.url)
+
+            try:
+                if on_event: on_event("model_prescreen", "running")
+                should_ingest, reason = _llm_prescreen(
+                    text_excerpt, doc, state.initial_entities, geography
+                )
+            except Exception:
+                should_ingest, reason = True, ""
+            finally:
+                if on_event: on_event("model_prescreen", "idle")
+            with state_lock:
+                _record_visit(state, item.url, item.trigger_entity,
+                              1 if should_ingest else 0)  # type: ignore
+
+            if not should_ingest:
+                if on_event: on_event("skip", f"{domain} — {reason[:70]}")
+                if is_pdf:
+                    dest = CORPUS_DIR / filename
+                    if dest.exists():
+                        dest.unlink(missing_ok=True)
+                with state_lock:
+                    state.total_docs_skipped += 1
+            else:
+                embed_q.put((item, doc, raw_docs, filename, text_excerpt))
+
+            # Session milestone every 100 classified docs
+            with _session_milestone_lock:
+                _classified_count[0] += 1
+                milestone = _classified_count[0] % _session_milestone == 0
+            if milestone:
+                state.session_count += 1
+                save_agent_state(state)
+                if on_event: on_event("info", f"── Session milestone: {state.session_count} ({_classified_count[0]} classified) ──")
+
+    # ── Stage 3: Embed worker (single — ChromaDB lock) ───────────────────────
+    def _embed_worker() -> None:
+        nonlocal docs_ingested, chunks_added
+        while True:
+            item_tuple = embed_q.get()
+            if item_tuple is _SENTINEL:
+                break
+            item, doc, raw_docs, filename, text_excerpt = item_tuple
+            domain = _domain(item.url)
+
+            try:
+                cks = chunk_documents(raw_docs)
+                cks = cks[:20]
+                if on_event: on_event("model_embed", f"running {len(cks)} chunks")
+                embed_and_store(cks)
+                n = len(cks)
+                licence = (_licence_for_source(item.source)
+                           if item.source in {"openalex", "semanticscholar", "arxiv", "internetarchive"}
+                           else "web")
+                _register_source(filename, item.url, licence, geography, doc.title, item.source)
+                g_mark_ingested(item.url)
+                with results_lock:
+                    docs_ingested += 1
+                    chunks_added  += n
+                    if text_excerpt:
+                        ingested_docs.append((doc, text_excerpt))
+                if on_event: on_event("model_embed", "idle")
+                if on_event: on_event("ingest", f"{domain} — {n} chunks stored")
+                _trigger_reasoning_if_due()
+                # Save state and graph every 5 ingested docs so they survive Ctrl-C
+                if docs_ingested % 5 == 0:
+                    try:
+                        save_agent_state(state)
+                        g_save()
+                    except Exception:
+                        pass
+            except Exception as exc:
+                if on_event: on_event("error", f"{domain} embed failed: {str(exc)[:60]}")
+
+    # ── Launch pipeline ───────────────────────────────────────────────────────
+    # Fetchers stream from frontier directly — no pre-loaded batch needed
+    fetchers    = [threading.Thread(target=_fetch_worker,    daemon=True)
+                   for _ in range(_NUM_FETCHERS)]
+    prescreener = threading.Thread(target=_prescreen_worker, daemon=True)
+    embedder    = threading.Thread(target=_embed_worker,     daemon=True)
+
+    for t in fetchers:
+        t.start()
+    prescreener.start()
+    embedder.start()
+
+    for t in fetchers:
+        t.join()
+    loaded_q.put(_SENTINEL)
+    prescreener.join()
+    embedder.join()
+
+    # Reasoning fired continuously during embedding — just collect results here
+
+    _sort_frontier(state)
+    if len(state.frontier) > FRONTIER_MAX:
+        state.frontier = state.frontier[:FRONTIER_MAX]
+
+    state.session_count          += 1
+    state.total_docs_ingested    += docs_ingested
+    state.total_chunks_added     += chunks_added
+    state.last_run                = _now()
+
+    return docs_ingested, chunks_added, reasoning_results
+
+
 # ── Guardrails ────────────────────────────────────────────────────────────────
 
 def _query_on_topic(query: str, anchor_terms: list[str]) -> bool:
-    """Return True if the query contains at least one anchor term (case-insensitive).
+    """Return True if the query contains at least one anchor term AND is not obviously
+    off-topic (e.g. pure healthcare/dictionary/lifestyle content).
 
-    Prevents the LLM from generating queries that drift entirely off the research topic.
+    Prevents the LLM from generating queries that drift off the research topic.
     """
     q_lower = query.lower()
-    return any(term.lower() in q_lower for term in anchor_terms if len(term) > 2)
+    if not any(term.lower() in q_lower for term in anchor_terms if len(term) > 2):
+        return False
+    # Reject queries that are clearly off-topic regardless of anchor presence
+    _OFF_TOPIC = {
+        "patient care", "hospital", "clinical trial", "medication", "drug dosage",
+        "dictionary", "definition of", "synonym", "thesaurus", "vocabulary",
+        "recipe", "cooking", "restaurant", "travel", "tourism",
+        "stock market", "cryptocurrency", "investment portfolio",
+        "sports", "football", "basketball", "celebrity",
+    }
+    return not any(bad in q_lower for bad in _OFF_TOPIC)
 
 
 def _entity_plausible(entity: str) -> bool:
@@ -783,6 +1245,87 @@ def _entity_plausible(entity: str) -> bool:
     return True
 
 
+# ── LLM goal-setting ─────────────────────────────────────────────────────────
+
+def llm_set_goals(
+    state: AgentDiscoverState,
+    geography: str,
+    research_query: str,
+    narrator_text: str = "",
+) -> list[str]:
+    """Ask the LLM to set 3-5 specific research goals based on current findings.
+
+    Goals persist in agent state across restarts and guide future searching.
+    """
+    from langchain_core.messages import HumanMessage, SystemMessage
+    from ai4saw.core.providers import get_llm
+
+    top_entities = sorted(
+        state.discovered_entities.items(),
+        key=lambda kv: kv[1].get("mention_count", 1), reverse=True
+    )
+    entity_list = ", ".join(e for e, _ in top_entities[:10]) or "none yet"
+    docs_in = state.total_docs_ingested
+    current_goals = "\n".join(f"  - {g}" for g in state.goals) or "  none yet"
+
+    executed = "; ".join(list(state.executed_queries)[-15:]) or "none"
+
+    prompt = f"""You are a research intelligence analyst. You are building an evidence corpus on:
+"{research_query}" (geography: {geography})
+
+Current state:
+- Documents ingested: {docs_in}
+- Key entities discovered: {entity_list}
+- Recent research summary: {narrator_text[:300] or "not yet available"}
+- Current goals:
+{current_goals}
+- Already searched (do not repeat): {executed}
+
+1. Set 3-5 specific, actionable research goals — concrete evidence targets (cases, people, documents, questions).
+2. For EACH goal, generate 5-6 targeted search queries that would find evidence for it.
+   Every query MUST include "{geography}" or a topic keyword. No site: operators.
+
+Output ONLY valid JSON:
+{{
+  "goals": ["goal 1", "goal 2", "goal 3"],
+  "queries": {{
+    "goal 1": ["query a", "query b", "query c", "query d", "query e"],
+    "goal 2": ["query a", "query b", "query c", "query d", "query e"]
+  }}
+}}"""
+
+    try:
+        llm = get_llm()
+        response = llm.invoke([
+            SystemMessage(content=f"You are a research intelligence analyst studying: {research_query}"),
+            HumanMessage(content=prompt),
+        ])
+        raw = response.content.strip()
+        if raw.startswith("```"):
+            parts = raw.split("```")
+            raw = parts[1] if len(parts) > 1 else raw
+            if raw.startswith("json"):
+                raw = raw[4:]
+        data = json.loads(raw.strip())
+        goals = [str(g) for g in data.get("goals", [])[:5] if isinstance(g, str)]
+        # Add all goal queries to the queue
+        anchors = state.initial_entities + [geography]
+        queries_added = 0
+        for goal_queries in data.get("queries", {}).values():
+            for q in goal_queries[:6]:
+                q = str(q)
+                if q not in state.executed_queries and q not in state.query_queue:
+                    if _query_on_topic(q, anchors):
+                        state.query_queue.append(q)
+                        queries_added += 1
+        if goals:
+            logger.info(f"[Goals] Set {len(goals)} goals, queued {queries_added} queries")
+            return goals
+    except Exception as exc:
+        logger.warning(f"Goal-setting failed: {exc}")
+    return state.goals  # keep existing goals on failure
+
+
 # ── LLM-driven seeding ────────────────────────────────────────────────────────
 
 def _llm_generate_seed_queries(
@@ -809,24 +1352,28 @@ def _llm_generate_seed_queries(
                     key=lambda kv: kv[1].hits, reverse=True)
     good_domains = ", ".join(d for d, s in scored[:5] if s.hits > 0) or "none yet"
 
+    goals_text = "\n".join(f"  - {g}" for g in state.goals) if state.goals else "  (none set yet)"
+
     prompt = f"""You are a research intelligence analyst. The system is searching for documents about:
 
 "{research_query}" (geography: {geography})
 
-The last several sessions found nothing relevant — the frontier is full of off-topic content.
-You must generate {n} specific, targeted web search queries to find directly relevant documents.
+Current research goals:
+{goals_text}
 
 What has been discovered so far:
   Known entities: {entity_list}
   Best domains so far: {good_domains}
   Already executed queries (do not repeat): {executed}
 
-Rules for each query:
-  1. MUST contain the conflict location or topic (e.g. "{geography}", "Sarajevo", "Bosnia", "war crimes")
-  2. MUST be specific — include entity names, dates, event names, court case IDs where possible
-  3. Target primary sources: ICTY judgments, NGO reports, tribunal records, witness testimony
-  4. Do NOT use site: operators — let the search engine find the best sources
-  5. Do NOT repeat any already-executed query
+Generate {n} specific search queries that directly advance the research goals above.
+
+Rules:
+  1. MUST contain the topic or geography keyword
+  2. MUST be specific — include names, dates, case IDs where possible
+  3. Prioritise queries that address the stated goals
+  4. Do NOT use site: operators
+  5. Do NOT repeat already-executed queries
 
 Output ONLY a JSON array of query strings:
 ["query 1", "query 2", ...]"""

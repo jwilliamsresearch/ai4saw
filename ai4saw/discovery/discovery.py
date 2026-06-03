@@ -48,6 +48,12 @@ from ai4saw.core.models import (
     DiscoveryResult,
     EntityResolutionResult,
 )
+from ai4saw.core.project import get_sources_csv
+from ai4saw.core.search_graph import (
+    g_record_seed,
+    g_record_source_query,
+    g_record_url,
+)
 
 OPENALEX_BASE        = "https://api.openalex.org/works"
 S2_BASE              = "https://api.semanticscholar.org/graph/v1/paper/search"
@@ -165,6 +171,7 @@ def _query_rss_feeds(
     entities: list[str],
     client: httpx.Client,
     limit_per_feed: int = 10,
+    on_event=None,
 ) -> list[DiscoveredDocument]:
     """Scan all RSS feeds and return articles matching any entity term."""
     import xml.etree.ElementTree as ET
@@ -172,6 +179,7 @@ def _query_rss_feeds(
     entity_terms = [e.lower() for e in entities if e]
     docs: list[DiscoveredDocument] = []
     headers = {"User-Agent": "ai4saw/0.1 (research; academic) httpx"}
+    if on_event: on_event("info", f"RSS: scanning {len(_RSS_FEEDS)} feeds…")
 
     for feed_id, feed_url in _RSS_FEEDS:
         try:
@@ -261,16 +269,25 @@ def _query_rss_feeds(
 
         except Exception as exc:
             logger.debug(f"RSS feed {feed_id} failed: {exc}")
+            if on_event: on_event("error", f"RSS {feed_id}: {str(exc)[:50]}")
             continue
 
-    logger.info(f"RSS feeds: {len(docs)} matching articles across {len(_RSS_FEEDS)} feeds")
+        # Report per-feed results only when matches found
+        feed_docs = [d for d in docs if d.source == feed_id]
+        if feed_docs and on_event:
+            on_event("info", f"RSS {feed_id}: {len(feed_docs)} matches")
+
+    total = len(docs)
+    if on_event:
+        on_event("info", f"RSS complete: {total} articles from {len(_RSS_FEEDS)} feeds")
+    logger.info(f"RSS feeds: {total} matching articles across {len(_RSS_FEEDS)} feeds")
     return docs
 
 
 # ── Deduplication helpers ─────────────────────────────────────────────────────
 
-def _known_urls(sources_csv: str = "corpus/sources.csv") -> set[str]:
-    path = Path(sources_csv)
+def _known_urls(sources_csv: Optional[str] = None) -> set[str]:
+    path = Path(sources_csv) if sources_csv else get_sources_csv()
     if not path.exists():
         return set()
     with open(path, encoding="utf-8") as f:
@@ -880,6 +897,7 @@ def discover_for_entities(
     per_entity_limit: int = 25,
     delay: float = INTER_REQUEST_DELAY,
     sources_csv: str = "corpus/sources.csv",
+    on_event=None,
 ) -> DiscoveryResult:
     """Run corpus discovery across all six sources for a list of entity strings.
 
@@ -898,64 +916,103 @@ def discover_for_entities(
     query_count = 0
     contact_email = getattr(settings, "contact_email", "")
 
+    # Record seed queries in the provenance graph
+    for entity in entities:
+        g_record_seed(entity)
+
     with httpx.Client(timeout=REQUEST_TIMEOUT) as client:
         # Per-entity sources (generous rate limits)
         for entity in entities:
             logger.info(f"Discovering: {entity!r}")
 
-            all_docs.extend(_query_openalex(entity, per_entity_limit, client, contact_email))
+            g_record_source_query(entity, "openalex")
+            new = _query_openalex(entity, per_entity_limit, client, contact_email)
+            all_docs.extend(new)
             query_count += 1
             time.sleep(OPENALEX_DELAY)
 
-            all_docs.extend(_query_internetarchive(entity, per_entity_limit, client))
+            g_record_source_query(entity, "internetarchive")
+            new = _query_internetarchive(entity, per_entity_limit, client)
+            all_docs.extend(new)
             query_count += 1
             time.sleep(delay)
 
         # Batched sources (one OR query for all entities — avoids per-IP rate bans)
+        batch_label = " | ".join(entities[:5])
+
         logger.info(f"Semantic Scholar: batch query for {len(entities)} entities")
-        all_docs.extend(_query_semanticscholar_batch(entities, limit=100, client=client))
+        g_record_source_query(batch_label, "semanticscholar")
+        new = _query_semanticscholar_batch(entities, limit=100, client=client)
+        all_docs.extend(new)
         query_count += 1
         time.sleep(delay)
 
         logger.info(f"arXiv: batch query for {len(entities)} entities")
-        all_docs.extend(_query_arxiv_batch(entities, limit=100, client=client))
+        g_record_source_query(batch_label, "arxiv")
+        new = _query_arxiv_batch(entities, limit=100, client=client)
+        all_docs.extend(new)
         query_count += 1
         time.sleep(delay)
 
         time.sleep(6)  # GDELT enforces 1 req/5s strictly; guarantee gap from previous calls
         logger.info(f"GDELT: batch query for {len(entities)} entities")
-        all_docs.extend(_query_gdelt_batch(entities, limit=250, client=client))
+        g_record_source_query(batch_label, "gdelt")
+        new = _query_gdelt_batch(entities, limit=250, client=client)
+        all_docs.extend(new)
         query_count += 1
 
         logger.info(f"RSS feeds: scanning {len(_RSS_FEEDS)} feeds for {len(entities)} entities")
-        all_docs.extend(_query_rss_feeds(entities, client))
+        new = _query_rss_feeds(entities, client, on_event=on_event)
+        for doc in new:
+            g_record_source_query(doc.trigger_entity or batch_label, doc.source)
+        all_docs.extend(new)
         query_count += 1
 
         logger.info(f"DOAJ: open access journals for {len(entities)} entities")
-        all_docs.extend(_query_doaj(entities, limit=50, client=client))
+        g_record_source_query(batch_label, "doaj")
+        new = _query_doaj(entities, limit=50, client=client)
+        all_docs.extend(new)
         query_count += 1
         time.sleep(delay)
 
         logger.info(f"Europe PMC: biomedical/life sciences for {len(entities)} entities")
-        all_docs.extend(_query_europepmc(entities, limit=50, client=client))
+        g_record_source_query(batch_label, "europepmc")
+        new = _query_europepmc(entities, limit=50, client=client)
+        all_docs.extend(new)
         query_count += 1
         time.sleep(delay)
 
         logger.info(f"PubMed: NCBI literature for {len(entities)} entities")
-        all_docs.extend(_query_pubmed(entities, limit=30, client=client))
+        g_record_source_query(batch_label, "pubmed")
+        new = _query_pubmed(entities, limit=30, client=client)
+        all_docs.extend(new)
         query_count += 1
         time.sleep(delay)
 
         logger.info(f"World Bank: policy documents for {len(entities)} entities")
-        all_docs.extend(_query_worldbank(entities, limit=30, client=client))
+        g_record_source_query(batch_label, "worldbank")
+        new = _query_worldbank(entities, limit=30, client=client)
+        all_docs.extend(new)
         query_count += 1
         time.sleep(delay)
 
         logger.info(f"HDX: humanitarian data for {len(entities)} entities")
-        all_docs.extend(_query_hdx(entities, limit=20, client=client))
+        g_record_source_query(batch_label, "hdx")
+        new = _query_hdx(entities, limit=20, client=client)
+        all_docs.extend(new)
         query_count += 1
 
     deduped = _dedup_and_rank(all_docs, known)
+
+    # Record all discovered URLs in the provenance graph
+    for doc in deduped:
+        g_record_url(
+            doc.url,
+            doc.title,
+            doc.source,
+            trigger_query=doc.trigger_entity,
+            query_type="seed_query",
+        )
     logger.info(
         f"Discovery complete: {query_count} API queries, "
         f"{len(all_docs)} raw results, {len(deduped)} new documents"
